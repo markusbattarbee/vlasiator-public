@@ -1425,11 +1425,11 @@ void update_remote_mapping_contribution_amr(
           doable with pragma omp critical?**/
  
    //#pragma omp parallel for
-   #pragma omp parallel for schedule(guided)
-//    for (auto c : local_cells) {      
-//       SpatialCell *ccell = mpiGrid[c];
-   for (size_t c=0; c < local_cells.size(); ++c) {
-      SpatialCell* ccell = mpiGrid[local_cells[c]];
+//   #pragma omp parallel for schedule(guided)
+    for (auto c : local_cells) {      
+       SpatialCell *ccell = mpiGrid[c];
+//    for (size_t c=0; c < local_cells.size(); ++c) {
+//       SpatialCell* ccell = mpiGrid[local_cells[c]];
 
       if (!ccell) continue;
 
@@ -1486,7 +1486,7 @@ void update_remote_mapping_contribution_amr(
 
                   ccell->neighbor_number_of_blocks.at(sendIndex) = pcell->get_number_of_velocity_blocks(popID);
                   
-                  #pragma omp critical
+		  //                  #pragma omp critical
 		  {
 		     if(send_cells.find(nbr) == send_cells.end()) {
 			// 5 We have not already sent data from this rank to this cell.
@@ -1546,7 +1546,7 @@ void update_remote_mapping_contribution_amr(
                  4) Ref_nbr <  Ref_c     , index = c   sibling index
                 */
 
-	       # pragma omp critical
+	       //# pragma omp critical
 	       {
 		  if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) {
 
