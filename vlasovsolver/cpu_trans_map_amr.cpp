@@ -1457,7 +1457,10 @@ void update_remote_mapping_contribution_amr(
       if (!all_of(p_nbrs.begin(), p_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
          // ccell adds a neighbor_block_data block for each neighbor in the positive direction to its local data
-         for (const auto nbr : p_nbrs) {
+//          for (const auto nbr : p_nbrs) {
+         #pragma omp parallel for
+	 for (size_t pc=0; pc < p_nbrs.size(); ++pc) {
+	    CellID nbr = p_nbrs[pc];
             
             //Send data in nbr target array that we just mapped to, if
             // 1) it is a valid target,
@@ -1486,7 +1489,7 @@ void update_remote_mapping_contribution_amr(
 
                   ccell->neighbor_number_of_blocks.at(sendIndex) = pcell->get_number_of_velocity_blocks(popID);
                   
-		  //                  #pragma omp critical
+                  #pragma omp critical
 		  {
 		     if(send_cells.find(nbr) == send_cells.end()) {
 			// 5 We have not already sent data from this rank to this cell.
@@ -1524,7 +1527,10 @@ void update_remote_mapping_contribution_amr(
       if (!all_of(n_nbrs.begin(), n_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
          // ccell adds a neighbor_block_data block for each neighbor in the positive direction to its local data
-         for (const auto nbr : n_nbrs) {
+         //for (const auto nbr : n_nbrs) {
+         #pragma omp parallel for
+	 for (size_t nc=0; nc < n_nbrs.size(); ++nc) {
+	    CellID nbr = n_nbrs[nc];
          
             if (nbr != INVALID_CELLID && !mpiGrid.is_local(nbr) &&
                 ccell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
@@ -1546,7 +1552,7 @@ void update_remote_mapping_contribution_amr(
                  4) Ref_nbr <  Ref_c     , index = c   sibling index
                 */
 
-	       //# pragma omp critical
+	       # pragma omp critical
 	       {
 		  if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) {
 
