@@ -1389,11 +1389,11 @@ void update_remote_mapping_contribution_amr(
    int t3 = phiprof::initializeTimer("update_remote");
 
    // Initialize remote cells
-//    for (auto rc : remote_cells) {
-//       SpatialCell *ccell = mpiGrid[rc];
-#pragma omp parallel for
-   for (size_t c=0; c < remote_cells.size(); ++c) {
-      SpatialCell* ccell = mpiGrid[remote_cells[c]];
+    for (auto rc : remote_cells) {
+       SpatialCell *ccell = mpiGrid[rc];
+//#pragma omp parallel for
+//    for (size_t c=0; c < remote_cells.size(); ++c) {
+//       SpatialCell* ccell = mpiGrid[remote_cells[c]];
 
       // Initialize number of blocks to 0 and block data to a default value.
       // We need the default for 1 to 1 communications
@@ -1406,11 +1406,11 @@ void update_remote_mapping_contribution_amr(
    }
 
    // Initialize local cells
-#pragma omp parallel for
-//    for (auto lc : local_cells) {
-//       SpatialCell *ccell = mpiGrid[lc];
-   for (size_t c=0; c < local_cells.size(); ++c) {
-      SpatialCell* ccell = mpiGrid[local_cells[c]];
+    //#pragma omp parallel for
+    for (auto lc : local_cells) {
+       SpatialCell *ccell = mpiGrid[lc];
+//    for (size_t c=0; c < local_cells.size(); ++c) {
+//       SpatialCell* ccell = mpiGrid[local_cells[c]];
       if(ccell) {
          // Initialize number of blocks to 0 and neighbor block data pointer to the local block data pointer
          for (uint i = 0; i < MAX_NEIGHBORS_PER_DIM; ++i) {
