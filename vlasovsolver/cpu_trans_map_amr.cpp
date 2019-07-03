@@ -1101,10 +1101,10 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    int t1 = phiprof::initializeTimer("mapping");
    int t2 = phiprof::initializeTimer("store");
    
-   #pragma omp parallel
+#pragma omp parallel
    {
       // Loop over velocity space blocks. Thread this loop (over vspace blocks) with OpenMP.
-      #pragma omp for schedule(guided)
+#pragma omp for schedule(guided)
       for(uint blocki = 0; blocki < unionOfBlocks.size(); blocki++) {
 
          // Get global id of the velocity block
@@ -1425,12 +1425,12 @@ void update_remote_mapping_contribution_amr(
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
    
-//     for (auto c : local_cells) {      
-//        SpatialCell *ccell = mpiGrid[c];
+    for (auto c : local_cells) {      
+       SpatialCell *ccell = mpiGrid[c];
 //    #pragma omp parallel for schedule(guided)
-   #pragma omp parallel for
-   for (size_t c=0; c < local_cells.size(); ++c) {
-      SpatialCell* ccell = mpiGrid[local_cells[c]];
+//    #pragma omp parallel for
+//    for (size_t c=0; c < local_cells.size(); ++c) {
+//       SpatialCell* ccell = mpiGrid[local_cells[c]];
 
       if (!ccell) continue;
 
@@ -1458,7 +1458,7 @@ void update_remote_mapping_contribution_amr(
       if (!all_of(p_nbrs.begin(), p_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
          // ccell adds a neighbor_block_data block for each neighbor in the positive direction to its local data
-          for (const auto nbr : p_nbrs) {
+         for (const auto nbr : p_nbrs) {
             
             //Send data in nbr target array that we just mapped to, if
             // 1) it is a valid target,
@@ -1507,8 +1507,17 @@ void update_remote_mapping_contribution_amr(
 
 		     ccell->neighbor_block_data.at(sendIndex) =
 			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
+// 			#pragma omp critical
+// 			{
+// 			sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+// 			}
+		     uint sendBufferWriteto;
 		     #pragma omp critical
-		     sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+		     {
+			sendBufferWriteto = sendBuffers.capacity();
+			sendBuffers.reserve(sendBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(sendIndex));
+		     }
+		     sendBuffers[sendBufferWriteto]=ccell->neighbor_block_data.at(sendIndex);
 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
 
@@ -1559,9 +1568,17 @@ void update_remote_mapping_contribution_amr(
 		  ncell->neighbor_number_of_blocks.at(recvIndex) = ccell->get_number_of_velocity_blocks(popID);
 		  ncell->neighbor_block_data.at(recvIndex) =
 		     (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(recvIndex) * WID3 * sizeof(Realf), 64);
+// 			#pragma omp critical
+// 			{
+// 			receiveBuffers.push_back(ccell->neighbor_block_data.at(recvIndex));
+// 			}
+		  uint receiveBufferWriteto;
 		  #pragma omp critical
-		  receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
-                  
+		  {
+		     receiveBufferWriteto = receiveBuffers.capacity();
+		     receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(recvIndex));
+		  }
+		  receiveBuffers[receiveBufferWriteto]=ccell->neighbor_block_data.at(recvIndex);
 	       } else {
 
 		  recvIndex = mySiblingIndex;
@@ -1585,8 +1602,18 @@ void update_remote_mapping_contribution_amr(
 			ncell->neighbor_number_of_blocks.at(i_sib) = scell->get_number_of_velocity_blocks(popID);
 			ncell->neighbor_block_data.at(i_sib) =
 			   (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(i_sib) * WID3 * sizeof(Realf), 64);
-			#pragma omp critical
-			receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+
+			uint receiveBufferWriteto;
+                        #pragma omp critical
+			{
+			   receiveBufferWriteto = receiveBuffers.capacity();
+			   receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ncell->neighbor_number_of_blocks.at(i_sib));
+			}
+			receiveBuffers[receiveBufferWriteto]=ncell->neighbor_block_data.at(i_sib);
+// 			#pragma omp critical
+// 			{
+// 			receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+// 			}
 		     }
 		  }
 	       } // closes if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) 
