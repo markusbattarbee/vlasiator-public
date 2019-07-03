@@ -1488,7 +1488,7 @@ void update_remote_mapping_contribution_amr(
                   ccell->neighbor_number_of_blocks.at(sendIndex) = pcell->get_number_of_velocity_blocks(popID);
 
 		  bool newtargetcell;
-                  #pragma omp critical
+		  //#pragma omp critical
 		  {
 		     // 5 We have not already sent data from this rank to this cell.
 		     newtargetcell = (send_cells.find(nbr) == send_cells.end());
@@ -1512,7 +1512,7 @@ void update_remote_mapping_contribution_amr(
 // 			sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
 // 			}
 		     uint sendBufferWriteto;
-		     #pragma omp critical
+		     //#pragma omp critical
 		     {
 			sendBufferWriteto = sendBuffers.capacity();
 			sendBuffers.reserve(sendBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(sendIndex));
@@ -1573,7 +1573,7 @@ void update_remote_mapping_contribution_amr(
 // 			receiveBuffers.push_back(ccell->neighbor_block_data.at(recvIndex));
 // 			}
 		  uint receiveBufferWriteto;
-		  #pragma omp critical
+		  //#pragma omp critical
 		  {
 		     receiveBufferWriteto = receiveBuffers.capacity();
 		     receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(recvIndex));
@@ -1604,7 +1604,7 @@ void update_remote_mapping_contribution_amr(
 			   (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(i_sib) * WID3 * sizeof(Realf), 64);
 
 			uint receiveBufferWriteto;
-                        #pragma omp critical
+                        //#pragma omp critical
 			{
 			   receiveBufferWriteto = receiveBuffers.capacity();
 			   receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ncell->neighbor_number_of_blocks.at(i_sib));
@@ -1618,7 +1618,7 @@ void update_remote_mapping_contribution_amr(
 		  }
 	       } // closes if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) 
 		  
-	       #pragma omp critical
+	       //#pragma omp critical
 	       {
 		  receive_cells.push_back(c);
 		  receive_origin_cells.push_back(nbr);
