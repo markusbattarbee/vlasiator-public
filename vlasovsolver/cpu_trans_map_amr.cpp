@@ -1449,13 +1449,14 @@ void update_remote_mapping_contribution_amr(
 //#pragma omp parallel for schedule(guided)
    //#pragma omp parallel for
    #pragma omp parallel
+   {
    vector<Realf*> th_receiveBuffers;
    vector<Realf*> th_sendBuffers;
    vector<CellID> th_receive_cells;
    vector<CellID> th_receive_origin_cells;
    vector<uint> th_receive_origin_index;
 
-   #pragma parallel for 
+   #pragma omp for 
    for (size_t ic=0; ic < local_cells.size(); ++ic) {
       CellID c = local_cells[ic];
       SpatialCell *ccell = mpiGrid[c];
@@ -1663,6 +1664,7 @@ void update_remote_mapping_contribution_amr(
       }      
       
    } // closes for (auto c : local_cells) {
+   } // closes pragma omp parallel
 
    //   phiprof::stop(t0);
    MPI_Barrier(MPI_COMM_WORLD);
