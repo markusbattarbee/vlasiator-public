@@ -1424,9 +1424,6 @@ void update_remote_mapping_contribution_amr(
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
 
-   receiveBuffers.reserve(256);
-   sendBuffers.reserve(256);
-
    #pragma omp parallel
    {
    vector<Realf*> th_receiveBuffers;
@@ -1620,7 +1617,8 @@ void update_remote_mapping_contribution_amr(
          } // closes for(uint i_nbr = 0; i_nbr < nbrs_of.size(); ++i_nbr)
          
       } // closes if(!all_of(nbrs_of.begin(), nbrs_of.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
-
+      
+   } // closes for (auto c : local_cells) {
       #pragma omp critical
       {
 	 for (auto th_rc : th_receive_cells) receive_cells.push_back(th_rc);
@@ -1629,8 +1627,6 @@ void update_remote_mapping_contribution_amr(
 	 for (auto th_rB : th_receiveBuffers) receiveBuffers.push_back(th_rB);
 	 for (auto th_sB : th_sendBuffers) sendBuffers.push_back(th_sB);
       }      
-      
-   } // closes for (auto c : local_cells) {
    } // closes pragma omp parallel
 
    MPI_Barrier(MPI_COMM_WORLD);
