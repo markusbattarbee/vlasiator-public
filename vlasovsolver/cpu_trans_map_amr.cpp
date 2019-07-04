@@ -6,6 +6,7 @@
 #include "../memoryallocation.h"
 #include "cpu_trans_map_amr.hpp"
 #include "cpu_trans_map.hpp"
+#include <cstring>
 
 using namespace std;
 using namespace spatial_cell;
@@ -1351,8 +1352,8 @@ void update_remote_mapping_contribution_amr(
 
    int neighborhood = 0;
 
-//    int myRank;
-//    MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+   int myRank;
+   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
 
    //normalize and set neighborhoods
    if(direction > 0) {
@@ -1434,16 +1435,27 @@ void update_remote_mapping_contribution_amr(
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
 
+
    receiveBuffers.reserve(256);
    sendBuffers.reserve(256);
 
 //    if(myRank == MASTER_RANK) {
 //       std::cout << "local_cells "<< local_cells.size() << std::endl;
 //    }
-   
+
+
+//   std::cout << "RANK "<<myRank<<" cells "<<local_cells.size()<<" remotes"<<remote_cells.size()<<std::endl;
 //   for (auto c : local_cells) {      
-//    #pragma omp parallel for schedule(guided)
-#pragma omp parallel for
+//#pragma omp parallel for schedule(guided)
+   //#pragma omp parallel for
+   #pragma omp parallel
+   vector<Realf*> th_receiveBuffers;
+   vector<Realf*> th_sendBuffers;
+   vector<CellID> th_receive_cells;
+   vector<CellID> th_receive_origin_cells;
+   vector<uint> th_receive_origin_index;
+
+   #pragma parallel for 
    for (size_t ic=0; ic < local_cells.size(); ++ic) {
       CellID c = local_cells[ic];
       SpatialCell *ccell = mpiGrid[c];
@@ -1530,15 +1542,18 @@ void update_remote_mapping_contribution_amr(
 
 		     ccell->neighbor_block_data.at(sendIndex) =
 			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
-                     #pragma omp critical
-		     sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-		     
-		     //std::memset(ccell->neighbor_block_data.at(0),0.0,sizeof(float)*cell->neighbor_number_of_blocks.at(sendIndex) * WID3);
-		     //#pragma omp parallel for
-		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
-			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
+		     //sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+		     th_sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+// 			if(myRank == MASTER_RANK) {
+// 			   std::cout << " cellid "<< c << " zero loop "<< ccell->neighbor_number_of_blocks.at(sendIndex) << " WID " << WID3 << " sizeof " << sizeof(ccell->neighbor_block_data.at(sendIndex)[0]) << std::endl;
+// 			}
 
-		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
+		     std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
+// 		     #pragma omp parallel for
+// 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
+// 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
+
+// 		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
                      
 		  } // closes if (newtargetcell) // closes if(send_cells.find(nbr) == send_cells.end())
 
@@ -1587,8 +1602,8 @@ void update_remote_mapping_contribution_amr(
 		  ncell->neighbor_number_of_blocks.at(recvIndex) = ccell->get_number_of_velocity_blocks(popID);
 		  ncell->neighbor_block_data.at(recvIndex) =
 		     (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(recvIndex) * WID3 * sizeof(Realf), 64);
-		  #pragma omp critical
-		  receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
+		  //receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
+		  th_receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 	       } else {
 
 		  recvIndex = mySiblingIndex;
@@ -1617,18 +1632,19 @@ void update_remote_mapping_contribution_amr(
 // 			   std::cout << "receivebuffers "<< receiveBuffers.capacity() << " " << receiveBuffers.size() << std::endl;
 // 			   std::cout << "increment "<< sizeof(ncell->neighbor_block_data.at(i_sib)) << std::endl;
 // 			}
-                        #pragma omp critical
-			receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+                        //#pragma omp critical
+			//receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+			th_receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
 		     }
 		  }
 	       } // closes if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) 
-		  
-	       #pragma omp critical
-	       {
-		  receive_cells.push_back(c);
-		  receive_origin_cells.push_back(nbr);
-		  receive_origin_index.push_back(recvIndex);
-	       } // closes pragma omp critical
+
+// 	       receive_cells.push_back(c);
+// 	       receive_origin_cells.push_back(nbr);
+// 	       receive_origin_index.push_back(recvIndex);
+	       th_receive_cells.push_back(c);
+	       th_receive_origin_cells.push_back(nbr);
+	       th_receive_origin_index.push_back(recvIndex);
 
             } // closes (nbr != INVALID_CELLID && !mpiGrid.is_local(nbr) && ...)
             
@@ -1636,6 +1652,15 @@ void update_remote_mapping_contribution_amr(
          
       } // closes if(!all_of(nbrs_of.begin(), nbrs_of.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
       //      phiprof::stop(t2);
+
+      #pragma omp critical
+      {
+	 for (auto th_rc : th_receive_cells) receive_cells.push_back(th_rc);
+	 for (auto th_roc : th_receive_origin_cells) receive_origin_cells.push_back(th_roc);
+	 for (auto th_roi : th_receive_origin_index) receive_origin_index.push_back(th_roi);
+	 for (auto th_rB : th_receiveBuffers) receiveBuffers.push_back(th_rB);
+	 for (auto th_sB : th_sendBuffers) sendBuffers.push_back(th_sB);
+      }      
       
    } // closes for (auto c : local_cells) {
 

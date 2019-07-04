@@ -639,7 +639,7 @@ int main(int argn,char* args[]) {
       phiprof::start("logfile-io");
       logFile << "---------- tstep = " << P::tstep << " t = " << P::t <<" dt = " << P::dt << " FS cycles = " << P::fieldSolverSubcycles << " ----------" << endl;
       if (P::diagnosticInterval != 0 &&
-          P::tstep % (P::diagnosticInterval*1) == 0 &&
+          P::tstep % (P::diagnosticInterval*10) == 0 &&
           P::tstep-P::tstep_min >0) {
 
          phiprof::print(MPI_COMM_WORLD,"phiprof");
