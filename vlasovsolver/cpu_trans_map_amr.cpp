@@ -1423,6 +1423,9 @@ void update_remote_mapping_contribution_amr(
    }
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
+//    vector< vector<Realf*>> outside, outer size is omp_get_max_threads()
+//    std::vector<Vec, aligned_allocator<Vec,64>> targetValues((lengthOfPencil + 2 * nTargetNeighborsPerPencil) * WID3 / VECL);
+   
 
    #pragma omp parallel
    {
@@ -1521,12 +1524,12 @@ void update_remote_mapping_contribution_amr(
 			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
 		     //sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
 		     th_sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-		     std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
+		     //std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
 // 		     #pragma omp parallel for
-// 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
-// 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
+		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
+			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
 
-// 		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
+		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
                      
 		  } // closes if (newtargetcell) // closes if(send_cells.find(nbr) == send_cells.end())
 
@@ -1621,11 +1624,17 @@ void update_remote_mapping_contribution_amr(
    } // closes for (auto c : local_cells) {
       #pragma omp critical
       {
-	 for (auto th_rc : th_receive_cells) receive_cells.push_back(th_rc);
-	 for (auto th_roc : th_receive_origin_cells) receive_origin_cells.push_back(th_roc);
-	 for (auto th_roi : th_receive_origin_index) receive_origin_index.push_back(th_roi);
-	 for (auto th_rB : th_receiveBuffers) receiveBuffers.push_back(th_rB);
-	 for (auto th_sB : th_sendBuffers) sendBuffers.push_back(th_sB);
+	 receive_cells.insert(receive_cells.end(), th_receive_cells.begin(), th_receive_cells.end());
+	 receive_origin_cells.insert(receive_origin_cells.end(), th_receive_origin_cells.begin(), th_receive_origin_cells.end());
+	 receive_origin_index.insert(receive_origin_index.end(), th_receive_origin_index.begin(), th_receive_origin_index.end());
+	 receiveBuffers.insert(receiveBuffers.end(), th_receiveBuffers.begin(), th_receiveBuffers.end());
+	 sendBuffers.insert(sendBuffers.end(), th_sendBuffers.begin(), th_sendBuffers.end());
+
+// 	 for (auto th_rc : th_receive_cells) receive_cells.push_back(th_rc);
+// 	 for (auto th_roc : th_receive_origin_cells) receive_origin_cells.push_back(th_roc);
+// 	 for (auto th_roi : th_receive_origin_index) receive_origin_index.push_back(th_roi);
+// 	 for (auto th_rB : th_receiveBuffers) receiveBuffers.push_back(th_rB);
+// 	 for (auto th_sB : th_sendBuffers) sendBuffers.push_back(th_sB);
       }      
    } // closes pragma omp parallel
 
