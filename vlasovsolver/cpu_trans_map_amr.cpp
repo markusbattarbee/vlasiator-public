@@ -1352,8 +1352,8 @@ void update_remote_mapping_contribution_amr(
 
    int neighborhood = 0;
 
-//    int myRank;
-//    MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+   int myRank;
+   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
 
    //normalize and set neighborhoods
    if(direction > 0) {
@@ -1425,7 +1425,7 @@ void update_remote_mapping_contribution_amr(
    vector<Realf*> sendBuffers;
 //    vector< vector<Realf*>> outside, outer size is omp_get_max_threads()
 //    std::vector<Vec, aligned_allocator<Vec,64>> targetValues((lengthOfPencil + 2 * nTargetNeighborsPerPencil) * WID3 / VECL);
-   
+//   uint rootranksend = 0;
 
    #pragma omp parallel
    {
@@ -1524,12 +1524,12 @@ void update_remote_mapping_contribution_amr(
 			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
 		     //sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
 		     th_sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-		     //std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
+		     std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
 // 		     #pragma omp parallel for
-		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
-			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
+// 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
+// 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
 
-		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
+// 		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
                      
 		  } // closes if (newtargetcell) // closes if(send_cells.find(nbr) == send_cells.end())
 
@@ -1596,7 +1596,7 @@ void update_remote_mapping_contribution_amr(
 		     if(mpiGrid.get_process(sibling) != mpiGrid.get_process(nbr)
 			&& myIndices.at(dimension) == sibIndices.at(dimension)) {
 			
-			auto* scell = mpiGrid[sibling];
+			SpatialCell *scell = mpiGrid[sibling];
 			
 			ncell->neighbor_number_of_blocks.at(i_sib) = scell->get_number_of_velocity_blocks(popID);
 			ncell->neighbor_block_data.at(i_sib) =
@@ -1624,6 +1624,9 @@ void update_remote_mapping_contribution_amr(
    } // closes for (auto c : local_cells) {
       #pragma omp critical
       {
+// 	 if(myRank == MASTER_RANK) {
+// 	    rootranksend += th_sendBuffers.size();
+// 	 }
 	 receive_cells.insert(receive_cells.end(), th_receive_cells.begin(), th_receive_cells.end());
 	 receive_origin_cells.insert(receive_origin_cells.end(), th_receive_origin_cells.begin(), th_receive_origin_cells.end());
 	 receive_origin_index.insert(receive_origin_index.end(), th_receive_origin_index.begin(), th_receive_origin_index.end());
@@ -1637,6 +1640,9 @@ void update_remote_mapping_contribution_amr(
 // 	 for (auto th_sB : th_sendBuffers) sendBuffers.push_back(th_sB);
       }      
    } // closes pragma omp parallel
+//    if(myRank == MASTER_RANK) {
+//       std::cout << "sendbuffer "<< sendBuffers.size() << " thread elements " << rootranksend << std::endl;
+//    }
 
    MPI_Barrier(MPI_COMM_WORLD);
       
@@ -1673,7 +1679,7 @@ void update_remote_mapping_contribution_amr(
       for (auto c : send_cells) {
          SpatialCell* spatial_cell = mpiGrid[c];
          Realf * blockData = spatial_cell->get_data(popID);
-         #pragma omp for nowait
+         #pragma omp for
          for(unsigned int vCell = 0; vCell < VELOCITY_BLOCK_LENGTH * spatial_cell->get_number_of_velocity_blocks(popID); ++vCell) {
             // copy received target data to temporary array where target data is stored.
             blockData[vCell] = 0;
@@ -1681,11 +1687,23 @@ void update_remote_mapping_contribution_amr(
       }
    }
 
-   for (auto p : receiveBuffers) {
-      aligned_free(p);
+//    // These in parallel loops as well?
+//    for (auto p : receiveBuffers) {
+//       if (p) aligned_free(p);
+//    }
+//    for (auto p : sendBuffers) {
+//       if (p) aligned_free(p);
+//    }
+
+   #pragma omp parallel for
+   for (size_t i=0; i<receiveBuffers.size();++i) {
+      auto p = receiveBuffers[i];
+      if (p) aligned_free(p);
    }
-   for (auto p : sendBuffers) {
-      aligned_free(p);
+   #pragma omp parallel for
+   for (size_t i=0; i<sendBuffers.size();++i) {
+      auto p = sendBuffers[i];
+      if (p) aligned_free(p);
    }
 
    // MPI_Barrier(MPI_COMM_WORLD);
