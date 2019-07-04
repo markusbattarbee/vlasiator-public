@@ -1350,7 +1350,10 @@ void update_remote_mapping_contribution_amr(
    vector<uint> receive_origin_index;
 
    int neighborhood = 0;
-   
+
+//    int myRank;
+//    MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+
    //normalize and set neighborhoods
    if(direction > 0) {
       direction = 1;
@@ -1385,15 +1388,20 @@ void update_remote_mapping_contribution_amr(
    // cout << "begin update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
    // MPI_Barrier(MPI_COMM_WORLD);
 
-   int t0 = phiprof::initializeTimer("prep_remote");
-   int t3 = phiprof::initializeTimer("update_remote");
+//    int t0 = phiprof::initializeTimer("prep_remote");
+//    int t1 = phiprof::initializeTimer("p_nbrs");
+//    int t2 = phiprof::initializeTimer("n_nbrs");
+//    int t3 = phiprof::initializeTimer("update_remote");
+//    int t4 = phiprof::initializeTimer("preloops");
+//    int t5 = phiprof::initializeTimer("cleanup");
+//    phiprof::start(t4);
 
    // Initialize remote cells
-    for (auto rc : remote_cells) {
-       SpatialCell *ccell = mpiGrid[rc];
-//#pragma omp parallel for
-//    for (size_t c=0; c < remote_cells.size(); ++c) {
-//       SpatialCell* ccell = mpiGrid[remote_cells[c]];
+//     for (auto rc : remote_cells) {
+//        SpatialCell *ccell = mpiGrid[rc];
+#pragma omp parallel for
+  for (size_t c=0; c < remote_cells.size(); ++c) {
+     SpatialCell* ccell = mpiGrid[remote_cells[c]];
 
       // Initialize number of blocks to 0 and block data to a default value.
       // We need the default for 1 to 1 communications
@@ -1406,11 +1414,11 @@ void update_remote_mapping_contribution_amr(
    }
 
    // Initialize local cells
-    //#pragma omp parallel for
-    for (auto lc : local_cells) {
-       SpatialCell *ccell = mpiGrid[lc];
-//    for (size_t c=0; c < local_cells.size(); ++c) {
-//       SpatialCell* ccell = mpiGrid[local_cells[c]];
+//    for (auto lc : local_cells) {
+//       SpatialCell *ccell = mpiGrid[lc];
+#pragma omp parallel for
+   for (size_t c=0; c < local_cells.size(); ++c) {
+      SpatialCell* ccell = mpiGrid[local_cells[c]];
       if(ccell) {
          // Initialize number of blocks to 0 and neighbor block data pointer to the local block data pointer
          for (uint i = 0; i < MAX_NEIGHBORS_PER_DIM; ++i) {
@@ -1419,18 +1427,26 @@ void update_remote_mapping_contribution_amr(
          }
       }
    }
+   //   phiprof::stop(t4);
    
-   MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::start(t0);
+//    MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::start(t0);
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
+
+   receiveBuffers.reserve(256);
+   sendBuffers.reserve(256);
+
+//    if(myRank == MASTER_RANK) {
+//       std::cout << "local_cells "<< local_cells.size() << std::endl;
+//    }
    
-    for (auto c : local_cells) {      
-       SpatialCell *ccell = mpiGrid[c];
+//   for (auto c : local_cells) {      
 //    #pragma omp parallel for schedule(guided)
-//    #pragma omp parallel for
-//    for (size_t c=0; c < local_cells.size(); ++c) {
-//       SpatialCell* ccell = mpiGrid[local_cells[c]];
+#pragma omp parallel for
+   for (size_t ic=0; ic < local_cells.size(); ++ic) {
+      CellID c = local_cells[ic];
+      SpatialCell *ccell = mpiGrid[c];
 
       if (!ccell) continue;
 
@@ -1454,6 +1470,7 @@ void update_remote_mapping_contribution_amr(
 
       int mySiblingIndex = get_sibling_index(mpiGrid,c);
 
+      //phiprof::start(t1);
       // Set up sends if any neighbor cells in p_nbrs are non-local.
       if (!all_of(p_nbrs.begin(), p_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
@@ -1488,7 +1505,7 @@ void update_remote_mapping_contribution_amr(
                   ccell->neighbor_number_of_blocks.at(sendIndex) = pcell->get_number_of_velocity_blocks(popID);
 
 		  bool newtargetcell;
-		  //#pragma omp critical
+		  #pragma omp critical
 		  {
 		     // 5 We have not already sent data from this rank to this cell.
 		     newtargetcell = (send_cells.find(nbr) == send_cells.end());
@@ -1500,6 +1517,12 @@ void update_remote_mapping_contribution_amr(
 		     //send_cells.insert(nbr);		       
 		  } else {
 
+// 		  if(send_cells.find(nbr) == send_cells.end()) {
+// 		  // 5 We have not already sent data from this rank to this cell.
+// 		     ccell->neighbor_block_data.at(sendIndex) = pcell->get_data(popID);
+// 		     send_cells.insert(nbr);		       
+// 		  } else {
+
 		     // The receiving cell can't know which cell is sending the data from this rank.
 		     // Therefore, we have to send 0's from other cells in the case where multiple cells
 		     // from one rank are sending to the same remote cell so that all sent cells can be
@@ -1507,17 +1530,11 @@ void update_remote_mapping_contribution_amr(
 
 		     ccell->neighbor_block_data.at(sendIndex) =
 			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
-// 			#pragma omp critical
-// 			{
-// 			sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-// 			}
-		     uint sendBufferWriteto;
-		     //#pragma omp critical
-		     {
-			sendBufferWriteto = sendBuffers.capacity();
-			sendBuffers.reserve(sendBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(sendIndex));
-		     }
-		     sendBuffers[sendBufferWriteto]=ccell->neighbor_block_data.at(sendIndex);
+                     #pragma omp critical
+		     sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+		     
+		     //std::memset(ccell->neighbor_block_data.at(0),0.0,sizeof(float)*cell->neighbor_number_of_blocks.at(sendIndex) * WID3);
+		     //#pragma omp parallel for
 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
 
@@ -1533,6 +1550,8 @@ void update_remote_mapping_contribution_amr(
         
       } // closes if(!all_of(nbrs_to.begin(), nbrs_to.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
 
+//       phiprof::stop(t1);
+//       phiprof::start(t2);
       // Set up receives if any neighbor cells in n_nbrs are non-local.
       if (!all_of(n_nbrs.begin(), n_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
@@ -1568,17 +1587,8 @@ void update_remote_mapping_contribution_amr(
 		  ncell->neighbor_number_of_blocks.at(recvIndex) = ccell->get_number_of_velocity_blocks(popID);
 		  ncell->neighbor_block_data.at(recvIndex) =
 		     (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(recvIndex) * WID3 * sizeof(Realf), 64);
-// 			#pragma omp critical
-// 			{
-// 			receiveBuffers.push_back(ccell->neighbor_block_data.at(recvIndex));
-// 			}
-		  uint receiveBufferWriteto;
-		  //#pragma omp critical
-		  {
-		     receiveBufferWriteto = receiveBuffers.capacity();
-		     receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ccell->neighbor_number_of_blocks.at(recvIndex));
-		  }
-		  receiveBuffers[receiveBufferWriteto]=ccell->neighbor_block_data.at(recvIndex);
+		  #pragma omp critical
+		  receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 	       } else {
 
 		  recvIndex = mySiblingIndex;
@@ -1603,22 +1613,17 @@ void update_remote_mapping_contribution_amr(
 			ncell->neighbor_block_data.at(i_sib) =
 			   (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(i_sib) * WID3 * sizeof(Realf), 64);
 
-			uint receiveBufferWriteto;
-                        //#pragma omp critical
-			{
-			   receiveBufferWriteto = receiveBuffers.capacity();
-			   receiveBuffers.reserve(receiveBufferWriteto+VELOCITY_BLOCK_LENGTH * ncell->neighbor_number_of_blocks.at(i_sib));
-			}
-			receiveBuffers[receiveBufferWriteto]=ncell->neighbor_block_data.at(i_sib);
-// 			#pragma omp critical
-// 			{
-// 			receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+// 			if(myRank == MASTER_RANK) {
+// 			   std::cout << "receivebuffers "<< receiveBuffers.capacity() << " " << receiveBuffers.size() << std::endl;
+// 			   std::cout << "increment "<< sizeof(ncell->neighbor_block_data.at(i_sib)) << std::endl;
 // 			}
+                        #pragma omp critical
+			receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
 		     }
 		  }
 	       } // closes if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) 
 		  
-	       //#pragma omp critical
+	       #pragma omp critical
 	       {
 		  receive_cells.push_back(c);
 		  receive_origin_cells.push_back(nbr);
@@ -1630,12 +1635,13 @@ void update_remote_mapping_contribution_amr(
          } // closes for(uint i_nbr = 0; i_nbr < nbrs_of.size(); ++i_nbr)
          
       } // closes if(!all_of(nbrs_of.begin(), nbrs_of.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
+      //      phiprof::stop(t2);
       
    } // closes for (auto c : local_cells) {
 
-   phiprof::stop(t0);
+   //   phiprof::stop(t0);
    MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::start(t3);
+   //phiprof::start(t3);
       
    // Do communication
    SpatialCell::setCommunicatedSpecies(popID);
@@ -1643,11 +1649,12 @@ void update_remote_mapping_contribution_amr(
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
 
    MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::stop(t3);
+   //phiprof::stop(t3);
 	 
+   //phiprof::start(t5);
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
-   //#pragma omp parallel
+   #pragma omp parallel
    {
       for (size_t c = 0; c < receive_cells.size(); ++c) {
          SpatialCell* receive_cell = mpiGrid[receive_cells[c]];
@@ -1660,7 +1667,7 @@ void update_remote_mapping_contribution_amr(
          Realf *blockData = receive_cell->get_data(popID);
          Realf *neighborData = origin_cell->neighbor_block_data[receive_origin_index[c]];
 
-         //#pragma omp for 
+         #pragma omp for 
          for(uint vCell = 0; vCell < VELOCITY_BLOCK_LENGTH * receive_cell->get_number_of_velocity_blocks(popID); ++vCell) {
             blockData[vCell] += neighborData[vCell];
          }
@@ -1671,7 +1678,7 @@ void update_remote_mapping_contribution_amr(
       for (auto c : send_cells) {
          SpatialCell* spatial_cell = mpiGrid[c];
          Realf * blockData = spatial_cell->get_data(popID);
-         //#pragma omp for nowait
+         #pragma omp for nowait
          for(unsigned int vCell = 0; vCell < VELOCITY_BLOCK_LENGTH * spatial_cell->get_number_of_velocity_blocks(popID); ++vCell) {
             // copy received target data to temporary array where target data is stored.
             blockData[vCell] = 0;
@@ -1685,6 +1692,7 @@ void update_remote_mapping_contribution_amr(
    for (auto p : sendBuffers) {
       aligned_free(p);
    }
+   //phiprof::stop(t5);
 
    // MPI_Barrier(MPI_COMM_WORLD);
    // cout << "end update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
