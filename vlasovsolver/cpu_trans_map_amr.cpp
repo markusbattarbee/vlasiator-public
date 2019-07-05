@@ -1589,6 +1589,10 @@ void update_remote_mapping_contribution_amr(
 
    MPI_Barrier(MPI_COMM_WORLD);
    
+   int myRank;
+   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
+
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
    //#pragma omp parallel
