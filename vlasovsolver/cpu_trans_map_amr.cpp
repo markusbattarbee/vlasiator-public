@@ -1544,7 +1544,7 @@ void update_remote_mapping_contribution_amr(
       // Set up receives if any neighbor cells in n_nbrs are non-local.
       if (!all_of(n_nbrs.begin(), n_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
-         // ccell adds a neighbor_block_data block for each neighbor in the positive direction to its local data
+         // ccell adds a neighbor_block_data block for each neighbor in the negative direction to its local data
          for (const auto nbr : n_nbrs) {
          
             if (nbr != INVALID_CELLID && !mpiGrid.is_local(nbr) &&
@@ -1567,8 +1567,19 @@ void update_remote_mapping_contribution_amr(
                  4) Ref_nbr <  Ref_c     , index = c   sibling index
                 */
 
-	       if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) {
+	       // Neighbor cell sends to only one local cell
+	       // Allocate memory for one sibling at recvIndex.
+                  
+	       recvIndex = get_sibling_index(mpiGrid,nbr);
+		  
+	       ncell->neighbor_number_of_blocks.at(recvIndex) = ccell->get_number_of_velocity_blocks(popID);
+	       ncell->neighbor_block_data.at(recvIndex) =
+		  (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(recvIndex) * WID3 * sizeof(Realf), 64);
+	       th_receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 
+	       /*
+	       if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) {
+		  // Neighbor cell sends to only one local cell
 		  // Allocate memory for one sibling at recvIndex.
                   
 		  recvIndex = get_sibling_index(mpiGrid,nbr);
@@ -1579,7 +1590,7 @@ void update_remote_mapping_contribution_amr(
 		  //receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 		  th_receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 	       } else {
-
+		  // ncell needs to send to multiple siblings of ccell
 		  recvIndex = mySiblingIndex;
                   
 		  auto mySiblings = mpiGrid.get_all_children(mpiGrid.get_parent(c));
@@ -1607,6 +1618,7 @@ void update_remote_mapping_contribution_amr(
 		     }
 		  }
 	       } // closes if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) 
+	       */
 
 // 	       receive_cells.push_back(c);
 // 	       receive_origin_cells.push_back(nbr);
