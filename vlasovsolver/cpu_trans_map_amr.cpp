@@ -1404,7 +1404,7 @@ void update_remote_mapping_contribution_amr(
    // Initialize remote cells
 //     for (auto rc : remote_cells) {
 //        SpatialCell *ccell = mpiGrid[rc];
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
   for (size_t c=0; c < remote_cells.size(); ++c) {
      SpatialCell* ccell = mpiGrid[remote_cells[c]];
 
@@ -1421,7 +1421,7 @@ void update_remote_mapping_contribution_amr(
    // Initialize local cells
 //    for (auto lc : local_cells) {
 //       SpatialCell *ccell = mpiGrid[lc];
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
    for (size_t c=0; c < local_cells.size(); ++c) {
       SpatialCell* ccell = mpiGrid[local_cells[c]];
       if(ccell) {
@@ -1455,7 +1455,7 @@ void update_remote_mapping_contribution_amr(
    vector<CellID> th_receive_origin_cells;
    vector<uint> th_receive_origin_index;
 
-   #pragma omp for
+   #pragma omp for schedule(dynamic)
    for (size_t ic=0; ic < local_cells.size(); ++ic) {
       CellID c = local_cells[ic];
 //   for (auto c : local_cells) {      
@@ -1700,7 +1700,7 @@ void update_remote_mapping_contribution_amr(
    omp_destroy_lock(&recvlock);
 
    phiprof::start(tbar);
-   MPI_Barrier(MPI_COMM_WORLD);
+   //MPI_Barrier(MPI_COMM_WORLD);
    phiprof::stop(tbar);
    phiprof::start(t2);
 
@@ -1711,7 +1711,7 @@ void update_remote_mapping_contribution_amr(
    phiprof::stop(t2);
       
    phiprof::start(tbar);
-   MPI_Barrier(MPI_COMM_WORLD);
+   //MPI_Barrier(MPI_COMM_WORLD);
    phiprof::stop(tbar);
 	 
    // Reduce data: sum received data in the data array to 
@@ -1753,6 +1753,8 @@ void update_remote_mapping_contribution_amr(
       }
       phiprof::stop(t3);
    }
+
+   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
 
 //    // These in parallel loops as well?
 //    for (auto p : receiveBuffers) {
