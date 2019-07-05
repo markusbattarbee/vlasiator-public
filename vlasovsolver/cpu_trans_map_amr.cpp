@@ -1496,42 +1496,42 @@ void update_remote_mapping_contribution_amr(
 
                   ccell->neighbor_number_of_blocks.at(sendIndex) = pcell->get_number_of_velocity_blocks(popID);
 
-		  bool newtargetcell;
-		  #pragma omp critical
-		  {
-		     // 5 We have not already sent data from this rank to this cell.
-		     newtargetcell = (send_cells.find(nbr) == send_cells.end());
-		     if (newtargetcell) send_cells.insert(nbr);
-		  }
-		  
-		  if (newtargetcell) {
+		  // Due to DCCRG, we might send data to a target pcell from multiple ccells. This can
+		  // happpen only if pcell has a lower reflevel than ccell..
+		  if(mpiGrid.get_refinement_level(c) <= mpiGrid.get_refinement_level(nbr)) {
+		     send_cells.insert(nbr);
 		     ccell->neighbor_block_data.at(sendIndex) = pcell->get_data(popID);
-		     //send_cells.insert(nbr);		       
 		  } else {
+		     // Check if cell has already been communicated to
+		     bool newtargetcell;
+                     #pragma omp critical
+		     { 
+			newtargetcell = (send_cells.find(nbr) == send_cells.end());
+			if (newtargetcell) send_cells.insert(nbr);
+		     }
+		 
+		     if (newtargetcell) {
+			// 5 We have not already sent data from this rank to this cell.
+			ccell->neighbor_block_data.at(sendIndex) = pcell->get_data(popID);
+		     } else {
+			// The receiving cell can't know which cell is sending the data from this rank.
+			// Therefore, we have to send 0's from other cells in the case where multiple cells
+			// from one rank are sending to the same remote cell so that all sent cells can be
+			// summed for the correct result.
 
-// 		  if(send_cells.find(nbr) == send_cells.end()) {
-// 		  // 5 We have not already sent data from this rank to this cell.
-// 		     ccell->neighbor_block_data.at(sendIndex) = pcell->get_data(popID);
-// 		     send_cells.insert(nbr);		       
-// 		  } else {
-
-		     // The receiving cell can't know which cell is sending the data from this rank.
-		     // Therefore, we have to send 0's from other cells in the case where multiple cells
-		     // from one rank are sending to the same remote cell so that all sent cells can be
-		     // summed for the correct result.
-
-		     ccell->neighbor_block_data.at(sendIndex) =
-			(Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
-		     //sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-		     th_sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
-		     std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
+			ccell->neighbor_block_data.at(sendIndex) =
+			   (Realf*) aligned_malloc(ccell->neighbor_number_of_blocks.at(sendIndex) * WID3 * sizeof(Realf), 64);
+			//sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+			th_sendBuffers.push_back(ccell->neighbor_block_data.at(sendIndex));
+			std::memset(ccell->neighbor_block_data.at(sendIndex),0.0,sizeof(Realf)*ccell->neighbor_number_of_blocks.at(sendIndex) * WID3);
 // 		     #pragma omp parallel for
 // 		     for (uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j) {
 // 			ccell->neighbor_block_data.at(sendIndex)[j] = 0.0;
-
 // 		     } // closes for(uint j = 0; j < ccell->neighbor_number_of_blocks.at(sendIndex) * WID3; ++j)
                      
-		  } // closes if (newtargetcell) // closes if(send_cells.find(nbr) == send_cells.end())
+		     } // closes if (newtargetcell) // closes if(send_cells.find(nbr) == send_cells.end())
+		     
+		  } // closes if(mpiGrid.get_refinement_level(c) <= mpiGrid.get_refinement_level(nbr))
 
                } // closes if(pcell && pcell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY)
                
@@ -1689,21 +1689,21 @@ void update_remote_mapping_contribution_amr(
 
 //    // These in parallel loops as well?
 //    for (auto p : receiveBuffers) {
-//       if (p) aligned_free(p);
+//       aligned_free(p);
 //    }
 //    for (auto p : sendBuffers) {
-//       if (p) aligned_free(p);
+//       aligned_free(p);
 //    }
 
    #pragma omp parallel for
    for (size_t i=0; i<receiveBuffers.size();++i) {
       auto p = receiveBuffers[i];
-      if (p) aligned_free(p);
+      aligned_free(p);
    }
    #pragma omp parallel for
    for (size_t i=0; i<sendBuffers.size();++i) {
       auto p = sendBuffers[i];
-      if (p) aligned_free(p);
+      aligned_free(p);
    }
 
    // MPI_Barrier(MPI_COMM_WORLD);
