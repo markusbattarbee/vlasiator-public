@@ -1638,7 +1638,7 @@ void update_remote_mapping_contribution_amr(
 // 	       th_receive_cells.push_back(c);
 // 	       th_receive_origin_cells.push_back(nbr);
 // 	       th_receive_origin_index.push_back(recvIndex);
- 
+
             } // closes (nbr != INVALID_CELLID && !mpiGrid.is_local(nbr) && ...)
             
          } // closes for(uint i_nbr = 0; i_nbr < nbrs_of.size(); ++i_nbr)
