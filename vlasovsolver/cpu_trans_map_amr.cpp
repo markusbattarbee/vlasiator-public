@@ -1345,7 +1345,8 @@ void update_remote_mapping_contribution_amr(
    vector<CellID> local_cells = mpiGrid.get_cells();
    const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
    vector<CellID> receive_cells;
-   set<CellID> send_cells;
+   vector<CellID> send_cells;
+   set<CellID> send_cells_critical;
    set<CellID> receive_cells_critical;
    
    vector<CellID> receive_origin_cells;
@@ -1430,6 +1431,7 @@ void update_remote_mapping_contribution_amr(
 
    #pragma omp parallel
    {
+   vector<CellID> th_send_cells;
    vector<Realf*> th_receiveBuffers;
    vector<Realf*> th_sendBuffers;
    vector<CellID> th_receive_cells;
@@ -1500,15 +1502,18 @@ void update_remote_mapping_contribution_amr(
 		  // Due to DCCRG, we might send data to a target pcell from multiple ccells. This can
 		  // happpen only if pcell has a lower reflevel than ccell..
 		  if(mpiGrid.get_refinement_level(c) <= mpiGrid.get_refinement_level(nbr)) {
-		     send_cells.insert(nbr);
+		     th_send_cells.push_back(nbr);
 		     ccell->neighbor_block_data.at(sendIndex) = pcell->get_data(popID);
 		  } else {
 		     // Check if cell has already been communicated to
 		     bool newtargetcell;
                      #pragma omp critical
 		     { 
-			newtargetcell = (send_cells.find(nbr) == send_cells.end());
-			if (newtargetcell) send_cells.insert(nbr);
+			newtargetcell = (send_cells_critical.find(nbr) == send_cells_critical.end());
+			if (newtargetcell) {
+			   send_cells_critical.insert(nbr);
+			   th_send_cells.push_back(nbr);
+		        }
 		     }
 		 
 		     if (newtargetcell) {
@@ -1600,6 +1605,7 @@ void update_remote_mapping_contribution_amr(
 			
 			auto sibling = mySiblings.at(i_sib);
 			auto sibIndices = mpiGrid.mapping.get_indices(sibling);
+			int sibIndex = get_sibling_index(mpiGrid,sibling);
 			
 			// Only allocate blocks for siblings that are remote face neighbors to ncell
 			if(mpiGrid.get_process(sibling) != mpiGrid.get_process(nbr)
@@ -1607,12 +1613,18 @@ void update_remote_mapping_contribution_amr(
 			   
 			   SpatialCell *scell = mpiGrid[sibling];
 			   
-			   ncell->neighbor_number_of_blocks.at(i_sib) = scell->get_number_of_velocity_blocks(popID);
-			   ncell->neighbor_block_data.at(i_sib) =
-			      (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(i_sib) * WID3 * sizeof(Realf), 64);
+// 			   ncell->neighbor_number_of_blocks.at(i_sib) = scell->get_number_of_velocity_blocks(popID);
+// 			   ncell->neighbor_block_data.at(i_sib) =
+// 			      (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(i_sib) * WID3 * sizeof(Realf), 64);
+			   ncell->neighbor_number_of_blocks.at(sibIndex) = scell->get_number_of_velocity_blocks(popID);
+			   ncell->neighbor_block_data.at(sibIndex) =
+			      (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(sibIndex) * WID3 * sizeof(Realf), 64);
 			   
 			   //receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
-			   th_receiveBuffers.push_back(ncell->neighbor_block_data.at(i_sib));
+			   th_receiveBuffers.push_back(ncell->neighbor_block_data.at(sibIndex));
+			   th_receive_cells.push_back(sibling);
+			   th_receive_origin_cells.push_back(nbr);
+			   th_receive_origin_index.push_back(sibIndex);
 			}
 		     }
 
@@ -1623,10 +1635,10 @@ void update_remote_mapping_contribution_amr(
 // 	       receive_cells.push_back(c);
 // 	       receive_origin_cells.push_back(nbr);
 // 	       receive_origin_index.push_back(recvIndex);
-	       th_receive_cells.push_back(c);
-	       th_receive_origin_cells.push_back(nbr);
-	       th_receive_origin_index.push_back(recvIndex);
-
+// 	       th_receive_cells.push_back(c);
+// 	       th_receive_origin_cells.push_back(nbr);
+// 	       th_receive_origin_index.push_back(recvIndex);
+ 
             } // closes (nbr != INVALID_CELLID && !mpiGrid.is_local(nbr) && ...)
             
          } // closes for(uint i_nbr = 0; i_nbr < nbrs_of.size(); ++i_nbr)
@@ -1639,6 +1651,7 @@ void update_remote_mapping_contribution_amr(
 // 	 if(myRank == MASTER_RANK) {
 // 	    rootranksend += th_sendBuffers.size();
 // 	 }
+	 send_cells.insert(send_cells.end(), th_send_cells.begin(), th_send_cells.end());
 	 receive_cells.insert(receive_cells.end(), th_receive_cells.begin(), th_receive_cells.end());
 	 receive_origin_cells.insert(receive_origin_cells.end(), th_receive_origin_cells.begin(), th_receive_origin_cells.end());
 	 receive_origin_index.insert(receive_origin_index.end(), th_receive_origin_index.begin(), th_receive_origin_index.end());
