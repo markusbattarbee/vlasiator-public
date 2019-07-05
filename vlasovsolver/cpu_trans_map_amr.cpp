@@ -1391,7 +1391,11 @@ void update_remote_mapping_contribution_amr(
    // cout << "begin update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
    // MPI_Barrier(MPI_COMM_WORLD);
 
-
+   int t1 = phiprof::initializeTimer("update_remote_pre");
+   int t2 = phiprof::initializeTimer("update_remote_comm");
+   int t3 = phiprof::initializeTimer("update_remote_post");
+   phiprof::start(t1);
+   
    // Initialize remote cells
 //     for (auto rc : remote_cells) {
 //        SpatialCell *ccell = mpiGrid[rc];
@@ -1669,14 +1673,18 @@ void update_remote_mapping_contribution_amr(
 //       std::cout << "sendbuffer "<< sendBuffers.size() << " thread elements " << rootranksend << std::endl;
 //    }
 
+   phiprof::stop(t1);
    MPI_Barrier(MPI_COMM_WORLD);
-      
+   phiprof::start(t2);
+
    // Do communication
    SpatialCell::setCommunicatedSpecies(popID);
    SpatialCell::set_mpi_transfer_type(Transfer::NEIGHBOR_VEL_BLOCK_DATA);
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
-
+   phiprof::stop(t2);
+      
    MPI_Barrier(MPI_COMM_WORLD);
+   phiprof::start(t3);
 	 
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
@@ -1730,7 +1738,8 @@ void update_remote_mapping_contribution_amr(
       auto p = sendBuffers[i];
       aligned_free(p);
    }
-
+   phiprof::stop(t3);
+      
    // MPI_Barrier(MPI_COMM_WORLD);
    // cout << "end update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
    // MPI_Barrier(MPI_COMM_WORLD);
