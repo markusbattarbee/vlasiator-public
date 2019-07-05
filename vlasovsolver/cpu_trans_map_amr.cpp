@@ -1606,6 +1606,10 @@ void update_remote_mapping_contribution_amr(
 		     (Realf*) aligned_malloc(ncell->neighbor_number_of_blocks.at(recvIndex) * WID3 * sizeof(Realf), 64);
 		  //receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
 		  th_receiveBuffers.push_back(ncell->neighbor_block_data.at(recvIndex));
+
+		  th_receive_cells.push_back(sibling);
+		  th_receive_origin_cells.push_back(nbr);
+		  th_receive_origin_index.push_back(sibIndex);
 	       } else {
 		  // Check if cell has already been communicated to
 		  bool newreceivecell;
