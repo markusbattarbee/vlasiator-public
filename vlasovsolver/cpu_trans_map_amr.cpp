@@ -1554,7 +1554,7 @@ void update_remote_mapping_contribution_amr(
                      auto sibling = mySiblings.at(i_sib);
                      auto sibIndices = mpiGrid.mapping.get_indices(sibling);
 
-		     if((mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) && (mpiGrid.get_refinement_level(c)==2){
+		     if((mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) && (mpiGrid.get_refinement_level(c)==2)){
 			   std::cout << "i_sib " << i_sib << " sibindex " << get_sibling_index(mpiGrid,sibling) << std::endl;
 		     }	     
                      
@@ -1597,10 +1597,12 @@ void update_remote_mapping_contribution_amr(
    MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
    //   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
 
+   uint th_size_send = send_cells.size();
+   uint th_size_recv = receive_cells.size();
    uint size_send;
    uint size_recv;
-   MPI_Reduce(&send_cells.size(), &size_send, 1, MPI_Type<uint>(), MPI_SUM, 0, MPI_COMM_WORLD);
-   MPI_Reduce(&receive_cells.size(), &size_recv, 1, MPI_Type<uint>(), MPI_SUM, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&th_size_send, &size_send, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&th_size_recv, &size_recv, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myRank==0) std::cout << "send sum " << size_send << " recv sum " << size_recv << std::endl;
 
 
