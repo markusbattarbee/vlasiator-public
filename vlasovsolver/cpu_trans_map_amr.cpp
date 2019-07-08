@@ -1398,7 +1398,8 @@ void update_remote_mapping_contribution_amr(
    int t2 = phiprof::initializeTimer("update_remote_comm");
    int t3 = phiprof::initializeTimer("update_remote_post");
    int t4 = phiprof::initializeTimer("update_remote_free");
-   int tbar = phiprof::initializeTimer("update_remote_barrier");
+   int tbar1 = phiprof::initializeTimer("update_remote_barrier_pre");
+   int tbar2 = phiprof::initializeTimer("update_remote_barrier_post");
    
    phiprof::start(t1);
    // Initialize remote cells
@@ -1702,20 +1703,20 @@ void update_remote_mapping_contribution_amr(
    omp_destroy_lock(&sendlock);
    omp_destroy_lock(&recvlock);
 
-   phiprof::start(tbar);
-   //MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::stop(tbar);
-   phiprof::start(t2);
+   phiprof::start(tbar1);
+   MPI_Barrier(MPI_COMM_WORLD);
+   phiprof::stop(tbar1);
 
    // Do communication
+   phiprof::start(t2);
    SpatialCell::setCommunicatedSpecies(popID);
    SpatialCell::set_mpi_transfer_type(Transfer::NEIGHBOR_VEL_BLOCK_DATA);
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
    phiprof::stop(t2);
       
-   phiprof::start(tbar);
-   //MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::stop(tbar);
+   phiprof::start(tbar2);
+   MPI_Barrier(MPI_COMM_WORLD);
+   phiprof::stop(tbar2);
 	 
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
@@ -1757,7 +1758,7 @@ void update_remote_mapping_contribution_amr(
       phiprof::stop(t3);
    }
 
-   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
+   //   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
 
 //    // These in parallel loops as well?
 //    for (auto p : receiveBuffers) {
