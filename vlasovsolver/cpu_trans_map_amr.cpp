@@ -1717,7 +1717,15 @@ void update_remote_mapping_contribution_amr(
    phiprof::start(tbar2);
    MPI_Barrier(MPI_COMM_WORLD);
    phiprof::stop(tbar2);
-	 
+
+   uint th_size_send = send_cells.size();
+   uint th_size_recv = receive_cells.size();
+   uint size_send;
+   uint size_recv;
+   MPI_Reduce(&th_size_send, &size_send, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&th_size_recv, &size_recv, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+   if (myRank==0) std::cout << "send sum " << size_send << " recv sum " << size_recv << std::endl;
+
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
    #pragma omp parallel
