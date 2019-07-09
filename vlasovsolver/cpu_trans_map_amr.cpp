@@ -1385,6 +1385,17 @@ void update_remote_mapping_contribution_amr(
    // cout << "begin update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
    // MPI_Barrier(MPI_COMM_WORLD);
 
+   int t1 = phiprof::initializeTimer("update_remote_pre");
+   int t10 = phiprof::initializeTimer("update_remote_pre_loop");
+   int t11 = phiprof::initializeTimer("update_remote_pre_thp");
+   int t12 = phiprof::initializeTimer("update_remote_pre_thn");
+   int t2 = phiprof::initializeTimer("update_remote_comm");
+   int t3 = phiprof::initializeTimer("update_remote_post");
+   int t4 = phiprof::initializeTimer("update_remote_free");
+//    int tbar1 = phiprof::initializeTimer("update_remote_barrier_pre");
+//    int tbar2 = phiprof::initializeTimer("update_remote_barrier_post");
+
+   phiprof::start(t1);
    // Initialize remote cells
    for (auto rc : remote_cells) {
       SpatialCell *ccell = mpiGrid[rc];
@@ -1409,10 +1420,12 @@ void update_remote_mapping_contribution_amr(
          }
       }
    }
+   phiprof::stop(t1);
    
    vector<Realf*> receiveBuffers;
    vector<Realf*> sendBuffers;
    
+   phiprof::start(t10);
    for (auto c : local_cells) {
       
       SpatialCell *ccell = mpiGrid[c];
@@ -1439,6 +1452,7 @@ void update_remote_mapping_contribution_amr(
 
       int mySiblingIndex = get_sibling_index(mpiGrid,c);
       
+      phiprof::start(t11);
       // Set up sends if any neighbor cells in p_nbrs are non-local.
       if (!all_of(p_nbrs.begin(), p_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
@@ -1503,6 +1517,8 @@ void update_remote_mapping_contribution_amr(
         
       } // closes if(!all_of(nbrs_to.begin(), nbrs_to.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
 
+      phiprof::stop(t11);
+      phiprof::start(t12);
       // Set up receives if any neighbor cells in n_nbrs are non-local.
       if (!all_of(n_nbrs.begin(), n_nbrs.end(), [&mpiGrid](CellID i){return mpiGrid.is_local(i);})) {
 
@@ -1528,7 +1544,7 @@ void update_remote_mapping_contribution_amr(
                  3) Ref_nbr >  Ref_c     , index = nbr sibling index
                  4) Ref_nbr <  Ref_c     , index = c   sibling index
                 */
-                                             
+
                if(mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) {
 
                   // Allocate memory for one sibling at recvIndex.
@@ -1553,6 +1569,10 @@ void update_remote_mapping_contribution_amr(
 
                      auto sibling = mySiblings.at(i_sib);
                      auto sibIndices = mpiGrid.mapping.get_indices(sibling);
+
+		     if((mpiGrid.get_refinement_level(nbr) >= mpiGrid.get_refinement_level(c)) && (mpiGrid.get_refinement_level(c)==2)){
+			   std::cout << "i_sib " << i_sib << " sibindex " << get_sibling_index(mpiGrid,sibling) << std::endl;
+		     }	     
                      
                      // Only allocate siblings that are remote face neighbors to ncell
                      if(mpiGrid.get_process(sibling) != mpiGrid.get_process(nbr)
@@ -1579,16 +1599,38 @@ void update_remote_mapping_contribution_amr(
       } // closes if(!all_of(nbrs_of.begin(), nbrs_of.end(),[&mpiGrid](CellID i){return mpiGrid.is_local(i);}))
       
    } // closes for (auto c : local_cells) {
+   phiprof::stop(t10);
 
-   MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::start(tbar1);
+//    MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::stop(tbar1);
    
    // Do communication
+   phiprof::start(t2);
    SpatialCell::setCommunicatedSpecies(popID);
    SpatialCell::set_mpi_transfer_type(Transfer::NEIGHBOR_VEL_BLOCK_DATA);
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
+   phiprof::stop(t2);
 
-   MPI_Barrier(MPI_COMM_WORLD);
-   
+//    phiprof::start(tbar2);
+//    MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::stop(tbar2);
+
+   int myRank;
+   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+   //   if (neighborhood == SHIFT_M_X_NEIGHBORHOOD_ID) std:cout<<"rank " << myRank << " local " << local_cells.size() << " remote " << remote_cells.size() << " send " << send_cells.size() << " recv " << receive_cells.size() << std::endl;
+
+   uint th_size_send = send_cells.size();
+   uint th_size_recv = receive_cells.size();
+   uint size_send;
+   uint size_recv;
+   MPI_Reduce(&th_size_send, &size_send, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&th_size_recv, &size_recv, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+   if (myRank==0) std::cout << "send sum " << size_send << " recv sum " << size_recv << std::endl;
+
+
+
+   phiprof::start(t3);
    // Reduce data: sum received data in the data array to 
    // the target grid in the temporary block container   
    //#pragma omp parallel
@@ -1622,6 +1664,8 @@ void update_remote_mapping_contribution_amr(
          }
       }
    }
+   phiprof::stop(t3);
+   phiprof::start(t4);
 
    for (auto p : receiveBuffers) {
       aligned_free(p);
@@ -1629,6 +1673,7 @@ void update_remote_mapping_contribution_amr(
    for (auto p : sendBuffers) {
       aligned_free(p);
    }
+   phiprof::stop(t4);
 
    // MPI_Barrier(MPI_COMM_WORLD);
    // cout << "end update_remote_mapping_contribution_amr, dimension = " << dimension << ", direction = " << direction << endl;
