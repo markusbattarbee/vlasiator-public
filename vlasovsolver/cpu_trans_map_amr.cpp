@@ -1601,9 +1601,9 @@ void update_remote_mapping_contribution_amr(
    } // closes for (auto c : local_cells) {
    phiprof::stop(t10);
 
-   phiprof::start(tbar1);
-   MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::stop(tbar1);
+//    phiprof::start(tbar1);
+//    MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::stop(tbar1);
    
    // Do communication
    phiprof::start(t2);
@@ -1612,9 +1612,9 @@ void update_remote_mapping_contribution_amr(
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
    phiprof::stop(t2);
 
-   phiprof::start(tbar2);
-   MPI_Barrier(MPI_COMM_WORLD);
-   phiprof::stop(tbar2);
+//    phiprof::start(tbar2);
+//    MPI_Barrier(MPI_COMM_WORLD);
+//    phiprof::stop(tbar2);
 
    int myRank;
    MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
