@@ -1392,8 +1392,8 @@ void update_remote_mapping_contribution_amr(
    int t2 = phiprof::initializeTimer("update_remote_comm");
    int t3 = phiprof::initializeTimer("update_remote_post");
    int t4 = phiprof::initializeTimer("update_remote_free");
-   int tbar1 = phiprof::initializeTimer("update_remote_barrier_pre");
-   int tbar2 = phiprof::initializeTimer("update_remote_barrier_post");
+//    int tbar1 = phiprof::initializeTimer("update_remote_barrier_pre");
+//    int tbar2 = phiprof::initializeTimer("update_remote_barrier_post");
 
    phiprof::start(t1);
    // Initialize remote cells
