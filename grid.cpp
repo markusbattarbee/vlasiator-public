@@ -247,8 +247,8 @@ void initializeGrids(
             // set initial LB metric based on number of blocks, all others
          // will be based on time spent in acceleration
          for (size_t i=0; i<cells.size(); ++i) {
-            mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[cells[i]]->get_number_of_velocity_blocks(popID);
-	    if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 0.1;
+            mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[cells[i]]->get_number_of_velocity_blocks(popID) * 1.e-4;
+	    if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 1.e-4;
          }
       }
       
