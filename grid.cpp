@@ -247,8 +247,9 @@ void initializeGrids(
             // set initial LB metric based on number of blocks, all others
          // will be based on time spent in acceleration
          for (size_t i=0; i<cells.size(); ++i) {
-            mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[cells[i]]->get_number_of_velocity_blocks(popID) * 1.e-4;
-	    if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 0.0;
+            //mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[cells[i]]->get_number_of_velocity_blocks(popID) * 1.e-4;
+	    mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 1.0; // Test constant weight
+	    if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 1.0e-10;
          }
       }
       
@@ -421,7 +422,7 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
       //use the number of blocks.
 //      if (P::propagateVlasovAcceleration) 
       mpiGrid.set_cell_weight(cells[i], mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER]);
-      if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 0.0;
+      if (mpiGrid[cells[i]]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE) mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER] = 1.0e-10;
     
 //      else
 //         mpiGrid.set_cell_weight(cells[i], mpiGrid[cells[i]]->get_number_of_all_velocity_blocks());
