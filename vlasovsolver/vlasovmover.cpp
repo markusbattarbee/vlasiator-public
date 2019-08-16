@@ -64,13 +64,21 @@ creal EPSILON = 1.0e-25;
   
  */
 void calculateSpatialTranslation(
+//         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+//         const vector<CellID>& localCells,
+//         const vector<CellID>& local_propagated_cells,
+//         const vector<CellID>& local_target_cells,
+//         const vector<CellID>& remoteTargetCellsx,
+//         const vector<CellID>& remoteTargetCellsy,
+//         const vector<CellID>& remoteTargetCellsz,
+//         creal dt,
+//         const uint popID) {
         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
         const vector<CellID>& localCells,
-        const vector<CellID>& local_propagated_cells,
-        const vector<CellID>& local_target_cells,
-        const vector<CellID>& remoteTargetCellsx,
-        const vector<CellID>& remoteTargetCellsy,
-        const vector<CellID>& remoteTargetCellsz,
+        const vector<CellID>& local_propagated_cells_x,
+        const vector<CellID>& local_propagated_cells_y,
+        const vector<CellID>& local_propagated_cells_z,
+        const vector<CellID>& remoteTargetCellsAll,
         creal dt,
         const uint popID) {
 
@@ -79,98 +87,50 @@ void calculateSpatialTranslation(
     
     int myRank;
     MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+
+    /** Now restructured: Update all ghost cells including corners,
+	then perform piecewise translation for all local cells
+	and also some required ghost cells
+    **/
+
+    trans_timer=phiprof::initializeTimer("transfer-stencil-data-all","MPI");
+    phiprof::start(trans_timer);
+    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
+    // Field solver neighborhood is simple
+    mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
+    phiprof::stop(trans_timer);
     
     // ------------- SLICE - map dist function in Z --------------- //
-   if(P::zcells_ini > 1){
-      trans_timer=phiprof::initializeTimer("transfer-stencil-data-z","MPI");
-      phiprof::start(trans_timer);
-      SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
-      mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID);
-      phiprof::stop(trans_timer);
-
+    if(P::zcells_ini > 1){
       phiprof::start("compute-mapping-z");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsz, 2, dt,popID); // map along z//
+         trans_map_1d(mpiGrid,local_propagated_cells_z, remoteTargetCellsAll, 2, dt,popID); // map along z//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsz, 2, dt,popID); // map along z//
+         trans_map_1d_amr(mpiGrid,local_propagated_cells_z, remoteTargetCellsAll, 2, dt,popID); // map along z//
       }
       phiprof::stop("compute-mapping-z");
-
-      trans_timer=phiprof::initializeTimer("update_remote-z","MPI");
-      phiprof::start("update_remote-z");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         update_remote_mapping_contribution(mpiGrid, 2,+1,popID);
-         update_remote_mapping_contribution(mpiGrid, 2,-1,popID);
-      } else {
-         update_remote_mapping_contribution_amr(mpiGrid, 2,+1,popID);
-         update_remote_mapping_contribution_amr(mpiGrid, 2,-1,popID);
-      }
-      phiprof::stop("update_remote-z");
-
    }
    
    // ------------- SLICE - map dist function in X --------------- //
    if(P::xcells_ini > 1){
-      
-      trans_timer=phiprof::initializeTimer("transfer-stencil-data-x","MPI");
-      phiprof::start(trans_timer);
-      SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
-
-      mpiGrid.set_send_single_cells(false);
-      mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
-      phiprof::stop(trans_timer);
-      
       phiprof::start("compute-mapping-x");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsx, 0,dt,popID); // map along x//
+         trans_map_1d(mpiGrid,local_propagated_cells_x, remoteTargetCellsAll, 0,dt,popID); // map along x//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsx, 0,dt,popID); // map along x//
+         trans_map_1d_amr(mpiGrid,local_propagated_cells_x, remoteTargetCellsAll, 0,dt,popID); // map along x//
       }
       phiprof::stop("compute-mapping-x");
-
-      trans_timer=phiprof::initializeTimer("update_remote-x","MPI");
-      phiprof::start("update_remote-x");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         update_remote_mapping_contribution(mpiGrid, 0,+1,popID);
-         update_remote_mapping_contribution(mpiGrid, 0,-1,popID);
-      } else {
-         update_remote_mapping_contribution_amr(mpiGrid, 0,+1,popID);
-         update_remote_mapping_contribution_amr(mpiGrid, 0,-1,popID);
-      }
-      phiprof::stop("update_remote-x");
-
    }
 
    // ------------- SLICE - map dist function in Y --------------- //
    if(P::ycells_ini > 1) {
-      
-      trans_timer=phiprof::initializeTimer("transfer-stencil-data-y","MPI");
-      phiprof::start(trans_timer);
-      SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
-      
-      mpiGrid.set_send_single_cells(false);
-      mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_Y_NEIGHBORHOOD_ID);
-      phiprof::stop(trans_timer);
-      
       phiprof::start("compute-mapping-y");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsy, 1,dt,popID); // map along y//
+         trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsAll, 1,dt,popID); // map along y//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsy, 1,dt,popID); // map along y//      
+         trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsAll, 1,dt,popID); // map along y//      
       }
       phiprof::stop("compute-mapping-y");
-      
-      trans_timer=phiprof::initializeTimer("update_remote-y","MPI");
-      phiprof::start("update_remote-y");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         update_remote_mapping_contribution(mpiGrid, 1,+1,popID);
-         update_remote_mapping_contribution(mpiGrid, 1,-1,popID);
-      } else {
-         update_remote_mapping_contribution_amr(mpiGrid, 1,+1,popID);
-         update_remote_mapping_contribution_amr(mpiGrid, 1,-1,popID);
-      }
-      phiprof::stop("update_remote-y");
-     
    }
 
    // MPI_Barrier(MPI_COMM_WORLD);
@@ -195,37 +155,59 @@ void calculateSpatialTranslation(
    phiprof::start("semilag-trans");
 
    const vector<CellID>& localCells = getLocalCells();
-   vector<CellID> remoteTargetCellsx;
-   vector<CellID> remoteTargetCellsy;
-   vector<CellID> remoteTargetCellsz;
-   vector<CellID> local_propagated_cells;
-   vector<CellID> local_target_cells;
+//    vector<CellID> remoteTargetCellsx;
+//    vector<CellID> remoteTargetCellsy;
+//    vector<CellID> remoteTargetCellsz;
+//    vector<CellID> local_propagated_cells;
+   vector<CellID> remoteTargetCellsAll;
+   vector<CellID> local_propagated_cells_x;
+   vector<CellID> local_propagated_cells_y;
+   vector<CellID> local_propagated_cells_z;
    
    // If dt=0 we are either initializing or distribution functions are not translated. 
    // In both cases go to the end of this function and calculate the moments.
    if (dt == 0.0) goto momentCalculation;
    
    phiprof::start("compute_cell_lists");
-   remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
-   remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
-   remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
-    
-    // Figure out which spatial cells are translated, 
-    // result independent of particle species.
-    for (size_t c=0; c<localCells.size(); ++c) {
-       if (do_translate_cell(mpiGrid[localCells[c]])) {
-          local_propagated_cells.push_back(localCells[c]);
-       }
-    }
-    
-   // Figure out target spatial cells, result
-   // independent of particle species.
+//    remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
+//    remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
+//    remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
+   remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(FIELD_SOLVER_NEIGHBORHOOD_ID);
+   
+   // Figure out which cells (+ ghost cells) need to be translated in each
+   // direction for correct results
+   // Translation order (dimensions) is 1: z 2: x 3: y
+   // result independent of particle species.
    for (size_t c=0; c<localCells.size(); ++c) {
-      if (mpiGrid[localCells[c]]->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
-         local_target_cells.push_back(localCells[c]);
+      if (do_translate_cell(mpiGrid[localCells[c]])) {
+	 local_propagated_cells_y.push_back(localCells[c]);
+      }
+   }  
+   local_propagated_cells_x = local_propagated_cells_y;
+   for (size_t c=0; c<local_propagated_cells_y.size(); ++c) {
+      // Add all cells which are y-directional neighbors (so they are computed
+      // properly before proceeding to y-translation in step 3
+      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_y[c]);      
+      for (const auto nbr : faceNbrs) {
+	 if mpiGrid.is_local(nbr) continue;
+	 if(abs(nbr.second) == 2) {	
+	    local_propagated_cells_x.push_back(local_propagated_cells_y[c]);
+	 }
       }
    }
-   phiprof::stop("compute_cell_lists");
+   local_propagated_cells_z = local_propagated_cells_x;
+   for (size_t c=0; c<local_propagated_cells_x.size(); ++c) {
+      // Add all cells which are x-directional neighbors (so they are computed
+      // properly before proceeding to x-translation in step 2
+      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
+      for (const auto nbr : faceNbrs) {
+	 if mpiGrid.is_local(nbr) continue;
+	 if(abs(nbr.second) == 3) {	
+	    local_propagated_cells_z.push_back(local_propagated_cells_x[c]);
+	 }
+      }
+   }
+   phiprof::stop("compute_cell_lists");   
    
    // Translate all particle species
    for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
@@ -233,9 +215,12 @@ void calculateSpatialTranslation(
       phiprof::start(profName);
       SpatialCell::setCommunicatedSpecies(popID);
       //      std::cout << "I am at line " << __LINE__ << " of " << __FILE__ << std::endl;
-      calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells,
-                                  local_target_cells,remoteTargetCellsx,remoteTargetCellsy,
-                                  remoteTargetCellsz,dt,popID);
+//       calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells,
+//                                   local_target_cells,remoteTargetCellsx,remoteTargetCellsy,
+//                                   remoteTargetCellsz,dt,popID);
+      calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells_x,
+				  local_propagated_cells_y,local_propagated_cells_z,
+				  remoteTargetCellsAll,dt,popID);
       phiprof::stop(profName);
    }
    
