@@ -189,7 +189,7 @@ void calculateSpatialTranslation(
       // properly before proceeding to y-translation in step 3
       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_y[c]);      
       for (const auto nbr : faceNbrs) {
-	 if mpiGrid.is_local(nbr) continue;
+	 if (mpiGrid.is_local(nbr.first)) continue;
 	 if(abs(nbr.second) == 2) {	
 	    local_propagated_cells_x.push_back(local_propagated_cells_y[c]);
 	 }
@@ -201,7 +201,7 @@ void calculateSpatialTranslation(
       // properly before proceeding to x-translation in step 2
       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
       for (const auto nbr : faceNbrs) {
-	 if mpiGrid.is_local(nbr) continue;
+	 if (mpiGrid.is_local(nbr.first)) continue;
 	 if(abs(nbr.second) == 3) {	
 	    local_propagated_cells_z.push_back(local_propagated_cells_x[c]);
 	 }
