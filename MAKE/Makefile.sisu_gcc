@@ -39,9 +39,9 @@ CXXFLAGS += -DUSE_JEMALLOC -DJEMALLOC_NO_DEMANGLE
 #                         errors that come up when using 
 #                         mpi.h in c++ on Cray
 
-CXXFLAGS += -DMPICH_IGNORE_CXX_SEEK
+CXXFLAGS += -DMPICH_IGNORE_CXX_SEEK -g
 
-FLAGS = 
+FLAGS = -g
 
 #GNU flags:
 CC_BRAND = gcc
@@ -50,7 +50,7 @@ CXXFLAGS += -O3 -fopenmp -funroll-loops -std=c++11 -W -Wall -Wno-unused -fabi-ve
 testpackage: CXXFLAGS = -O2 -fopenmp -funroll-loops -std=c++0x -fabi-version=0  -mavx
 
 MATHFLAGS = -ffast-math
-LDFLAGS =
+LDFLAGS = -g
 LIB_MPI = -lgomp
 
 # BOOST_VERSION = current trilinos version

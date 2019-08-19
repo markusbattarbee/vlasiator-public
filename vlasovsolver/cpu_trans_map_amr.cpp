@@ -1066,9 +1066,9 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
 
    if(printPencils) printPencilsFunc(pencils,dimension,myRank);
 
-   if(!checkPencils(mpiGrid, localPropagatedCells, pencils)) {
-      abort();
-   }
+//    if(!checkPencils(mpiGrid, localPropagatedCells, pencils)) {
+//       abort();
+//    }
    
    // Add the final set of pencils to the pencilSets - vector.
    // Only one set is created for now but we retain support for multiple sets

@@ -74,7 +74,6 @@ void calculateSpatialTranslation(
 //         creal dt,
 //         const uint popID) {
         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& localCells,
         const vector<CellID>& local_propagated_cells_x,
         const vector<CellID>& local_propagated_cells_y,
         const vector<CellID>& local_propagated_cells_z,
@@ -97,7 +96,8 @@ void calculateSpatialTranslation(
     phiprof::start(trans_timer);
     SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
     // Field solver neighborhood is simple
-    mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
+    //mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_NEIGHBORHOOD_ID);
     phiprof::stop(trans_timer);
     
     // ------------- SLICE - map dist function in Z --------------- //
@@ -172,7 +172,8 @@ void calculateSpatialTranslation(
 //    remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
 //    remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
 //    remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
-   remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(FIELD_SOLVER_NEIGHBORHOOD_ID);
+   //remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(FIELD_SOLVER_NEIGHBORHOOD_ID);
+   remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
    
    // Figure out which cells (+ ghost cells) need to be translated in each
    // direction for correct results
@@ -190,7 +191,7 @@ void calculateSpatialTranslation(
       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_y[c]);      
       for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
-	 if(abs(nbr.second) == 2) {	
+	 if ((abs(nbr.second) == 2) && (nbr.first != local_propagated_cells_x.back())){	// back() DOESN'T WORK
 	    local_propagated_cells_x.push_back(local_propagated_cells_y[c]);
 	 }
       }
@@ -202,7 +203,7 @@ void calculateSpatialTranslation(
       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
       for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
-	 if(abs(nbr.second) == 3) {	
+	 if ((abs(nbr.second) == 3) && (nbr.first != local_propagated_cells_z.back())){		// back() DOESN'T WORK
 	    local_propagated_cells_z.push_back(local_propagated_cells_x[c]);
 	 }
       }
@@ -218,7 +219,7 @@ void calculateSpatialTranslation(
 //       calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells,
 //                                   local_target_cells,remoteTargetCellsx,remoteTargetCellsy,
 //                                   remoteTargetCellsz,dt,popID);
-      calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells_x,
+      calculateSpatialTranslation(mpiGrid,local_propagated_cells_x,
 				  local_propagated_cells_y,local_propagated_cells_z,
 				  remoteTargetCellsAll,dt,popID);
       phiprof::stop(profName);
