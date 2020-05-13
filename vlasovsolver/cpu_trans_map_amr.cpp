@@ -1002,24 +1002,10 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    int myRank;
    if(printPencils) MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
 
-   /*
    // Vector with all cell ids
    vector<CellID> allCells(localPropagatedCells);
    allCells.insert(allCells.end(), remoteTargetCells.begin(), remoteTargetCells.end());  
-   */
-
-   // Set with all cell ids
-   set<CellID> setAllCells;   
-   for(uint celli = 0; celli < localPropagatedCells.size(); celli++){
-     setAllCells.insert(localPropagatedCells[celli]);  
-   }
-   for(uint celli = 0; celli < remoteTargetCells.size(); celli++){
-     setAllCells.insert(remoteTargetCells[celli]);  
-   }
-   // Convert to vector
-   vector<CellID> allCells;
-   allCells.assign(setAllCells.begin(), setAllCells.end());
-
+   
    // Vectors of pointers to the cell structs
    std::vector<SpatialCell*> allCellsPointer(allCells.size());  
 

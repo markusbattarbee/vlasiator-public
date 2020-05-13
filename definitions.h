@@ -112,6 +112,10 @@ typedef Realf (*AmrVelRefinement)(const Realf* velBlock);
 #define SHIFT_M_X_NEIGHBORHOOD_ID 17 //Shift in -x direction
 #define SHIFT_M_Y_NEIGHBORHOOD_ID 18 //Shift in -y direction
 #define SHIFT_M_Z_NEIGHBORHOOD_ID 19 //Shift in -z direction
+#define VLASOV_ONLYLOCAL 20 //Massive neighbourhood for only local propagation
+#define VLASOV_ONLYLOCAL_X 21 // for only local propagation
+#define VLASOV_ONLYLOCAL_Y 22 // for only local propagation
+#define VLASOV_ONLYLOCAL_Z 23 // for only local propagation
 
 //fieldsolver stencil.
 #define FS_STENCIL_WIDTH 2

@@ -78,7 +78,9 @@ void calculateSpatialTranslation(
         const vector<CellID>& local_propagated_cells_x,
         const vector<CellID>& local_propagated_cells_y,
         const vector<CellID>& local_propagated_cells_z,
-        const vector<CellID>& remoteTargetCellsAll,
+	const vector<CellID>& remoteTargetCellsx,
+	const vector<CellID>& remoteTargetCellsy,
+	const vector<CellID>& remoteTargetCellsz,
         vector<uint>& nPencils,
         creal dt,
         const uint popID,
@@ -104,7 +106,7 @@ void calculateSpatialTranslation(
     // Field solver neighborhood is simple
     //mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
     //mpiGrid.update_copies_of_remote_neighbors(SYSBOUNDARIES_NEIGHBORHOOD_ID);
-    mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ONLYLOCAL);
     phiprof::stop(trans_timer);
     
     // ------------- SLICE - map dist function in Z --------------- //
@@ -113,9 +115,9 @@ void calculateSpatialTranslation(
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-z");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_z, remoteTargetCellsAll, 2, dt,popID); // map along z//
+         trans_map_1d(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, 2, dt,popID); // map along z//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_z, remoteTargetCellsAll, 2, dt,popID); // map along z//
+	trans_map_1d_amr(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, nPencils, 2, dt,popID); // map along z//
       }
       phiprof::stop("compute-mapping-z");
       time += MPI_Wtime() - t1;
@@ -131,9 +133,9 @@ void calculateSpatialTranslation(
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-x");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_x, remoteTargetCellsAll, 0,dt,popID); // map along x//
+         trans_map_1d(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, 0,dt,popID); // map along x//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_x, remoteTargetCellsAll, 0,dt,popID); // map along x//
+         trans_map_1d_amr(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, nPencils, 0, dt,popID); // map along x//
       }
       phiprof::stop("compute-mapping-x");
       time += MPI_Wtime() - t1;
@@ -149,9 +151,9 @@ void calculateSpatialTranslation(
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-y");
       if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsAll, 1,dt,popID); // map along y//
+         trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, 1,dt,popID); // map along y//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsAll, 1,dt,popID); // map along y//      
+         trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//      
       }
       phiprof::stop("compute-mapping-y");
       time += MPI_Wtime() - t1;
@@ -186,11 +188,10 @@ void calculateSpatialTranslation(
    double t1 = MPI_Wtime();
 
    const vector<CellID>& localCells = getLocalCells();
-//    vector<CellID> remoteTargetCellsx;
-//    vector<CellID> remoteTargetCellsy;
-//    vector<CellID> remoteTargetCellsz;
+    vector<CellID> remoteTargetCellsx;
+    vector<CellID> remoteTargetCellsy;
+    vector<CellID> remoteTargetCellsz;
 //    vector<CellID> local_propagated_cells;
-   vector<CellID> remoteTargetCellsAll;
    vector<CellID> local_propagated_cells_x;
    vector<CellID> local_propagated_cells_y;
    vector<CellID> local_propagated_cells_z;
@@ -202,50 +203,95 @@ void calculateSpatialTranslation(
    if (dt == 0.0) goto momentCalculation;
    
    phiprof::start("compute_cell_lists");
-//    remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
-//    remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
-//    remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
-   //remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(FIELD_SOLVER_NEIGHBORHOOD_ID);
-   remoteTargetCellsAll = mpiGrid.get_remote_cells_on_process_boundary(SYSBOUNDARIES_NEIGHBORHOOD_ID);
+   remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_X);
+   remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_Y);
+   remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_Z);
    
    // Figure out which cells (+ ghost cells) need to be translated in each
    // direction for correct results
    // Translation order (dimensions) is 1: z 2: x 3: y
+   /*
+     for final y-translation, we need to have translate y for cells y\pm 1. 
+     For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL)
+
+     Thus, x-translation must happen for cells y\pm(1+VLASOV_STENCIL) x\pm1
+     For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL)
+
+     Thus, z-translation must happen for cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL) z\pm1
+     For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL) z\pm(1+VLASOV_STENCIL) (but the z\pm(1+VLASOV_STENCIL) already is ok)
+    */
+   
    // result independent of particle species.
    for (size_t c=0; c<localCells.size(); ++c) {
       if (do_translate_cell(mpiGrid[localCells[c]])) {
 	 local_propagated_cells_y.push_back(localCells[c]);
       }
-   }  
-   local_propagated_cells_x = local_propagated_cells_y;
-   for (size_t c=0; c<local_propagated_cells_y.size(); ++c) {
-      // Add all cells which are y-directional neighbors (so they are computed
-      // properly before proceeding to y-translation in step 3
-      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_y[c]);      
+      // Add first ghost cells in y direction to get rid of remote updates
+      const auto faceNbrs = mpiGrid.get_face_neighbors_of(localCells[c]);      
       for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
-	 if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_x.begin(),
+	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_y.begin(),
+						  local_propagated_cells_y.end(), nbr.first) == local_propagated_cells_y.end())) {
+	   local_propagated_cells_y.push_back(nbr.first);
+	 }
+      }      
+   }  
+   
+   local_propagated_cells_x = local_propagated_cells_y;
+   // Add VLASOV_STENCIL cells in the y-direction
+   for (uint vs=0; vs<VLASOV_STENCIL_WIDTH; ++vs) {
+     for (size_t c=0; c<local_propagated_cells_x.size(); ++c) {
+       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
+       for (const auto nbr : faceNbrs) {
+	 if (mpiGrid.is_local(nbr.first)) continue;
+	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_x.begin(),
 						  local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
 	   local_propagated_cells_x.push_back(nbr.first);
 	 }
-      }
+       }
+     }
    }
-   local_propagated_cells_z = local_propagated_cells_x;
+   // Add \pm 1 cells in x-direction
    for (size_t c=0; c<local_propagated_cells_x.size(); ++c) {
-      // Add all cells which are x-directional neighbors (so they are computed
-      // properly before proceeding to x-translation in step 2
-      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
-      for (const auto nbr : faceNbrs) {
+     const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
+     for (const auto nbr : faceNbrs) {
+       if (mpiGrid.is_local(nbr.first)) continue;
+       if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_x.begin(),
+						local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
+	 local_propagated_cells_x.push_back(nbr.first);
+       }
+     }
+   }
+     
+   local_propagated_cells_z = local_propagated_cells_x;
+   // Add VLASOV_STENCIL cells in the x-direction
+   for (uint vs=0; vs<VLASOV_STENCIL_WIDTH; ++vs) {
+     for (size_t c=0; c<local_propagated_cells_z.size(); ++c) {
+       const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_z[c]);      
+       for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
-	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_z.begin(),
+	 if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_z.begin(),
 						  local_propagated_cells_z.end(), nbr.first) == local_propagated_cells_z.end())) {
 	   local_propagated_cells_z.push_back(nbr.first);
 	 }
-      }
+       }
+     }
    }
+   // Add \pm 1 cells in z-direction
+   for (size_t c=0; c<local_propagated_cells_z.size(); ++c) {
+     const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_z[c]);      
+     for (const auto nbr : faceNbrs) {
+       if (mpiGrid.is_local(nbr.first)) continue;
+       if ((abs(nbr.second) == 3) && (std::find(local_propagated_cells_z.begin(),
+						local_propagated_cells_z.end(), nbr.first) == local_propagated_cells_z.end())) {
+	 local_propagated_cells_z.push_back(nbr.first);
+       }
+     }
+   }
+
    if (P::prepareForRebalance == true && P::amrMaxSpatialRefLevel != 0) {
       // One more element to count the sums
-      for (size_t c=0; c<local_propagated_cells.size()+1; c++) {
+      for (size_t c=0; c<local_propagated_cells_z.size()+1; c++) {
          nPencils.push_back(0);
       }
    }
@@ -265,7 +311,9 @@ void calculateSpatialTranslation(
 				  local_propagated_cells_x,
 				  local_propagated_cells_y,
 				  local_propagated_cells_z,
-				  remoteTargetCellsAll,
+				  remoteTargetCellsx,
+				  remoteTargetCellsy,
+				  remoteTargetCellsz,
 				  nPencils,
 				  dt,
 				  popID,
@@ -273,7 +321,16 @@ void calculateSpatialTranslation(
 				  );
       phiprof::stop(profName);
    }
-   
+
+
+   if (Parameters::prepareForRebalance == true) {
+     for (size_t c=0; c<localCells.size(); ++c) {
+       for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
+	 mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[localCells[c]]->get_number_of_velocity_blocks(popID);
+       }
+     }
+   }
+   /*
    if (Parameters::prepareForRebalance == true) {
       if(P::amrMaxSpatialRefLevel == 0) {
 //          const double deltat = (MPI_Wtime() - t1) / local_propagated_cells.size();
@@ -285,7 +342,7 @@ void calculateSpatialTranslation(
          }
       } else {
 //          const double deltat = MPI_Wtime() - t1;
-         for (size_t c=0; c<local_propagated_cells.size(); ++c) {
+         for (size_t c=0; c<local_propagated_cells_z.size(); ++c) {
             Real counter = 0;
             for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
                counter += mpiGrid[local_propagated_cells[c]]->get_number_of_velocity_blocks(popID);
@@ -293,8 +350,8 @@ void calculateSpatialTranslation(
             mpiGrid[local_propagated_cells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += nPencils[c] * counter;
 //            mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += time / localCells.size();
          }
-      }
-   }
+      } 
+   }*/
    
    // Mapping complete, update moments and maximum dt limits //
 momentCalculation:

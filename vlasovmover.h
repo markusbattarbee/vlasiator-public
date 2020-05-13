@@ -42,15 +42,6 @@ void calculateSpatialTranslation(
                                  dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                  Real dt);
 
-void calculateSpatialTranslation(
-				 dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-				 const std::vector<CellID>& local_propagated_cells_x,
-				 const std::vector<CellID>& local_propagated_cells_y,
-				 const std::vector<CellID>& local_propagated_cells_z,
-				 const std::vector<CellID>& remoteTargetCellsAll,
-				 creal dt,
-				 const uint popID);
-
 /** Calculate velocity moments for the given spatial cell.
  * This function is defined in cpu_moments.cpp file.*/
 void calculateCellMoments(
