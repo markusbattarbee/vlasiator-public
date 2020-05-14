@@ -1110,9 +1110,9 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
 
    if(printPencils) printPencilsFunc(pencils,dimension,myRank);
 
-//    if(!checkPencils(mpiGrid, localPropagatedCells, pencils)) {
-//       abort();
-//    }
+   if(!checkPencils(mpiGrid, localPropagatedCells, pencils)) {
+      abort();
+   }
    
    if (Parameters::prepareForRebalance == true) {
       for (uint i=0; i<localPropagatedCells.size(); i++) {
