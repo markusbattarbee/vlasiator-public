@@ -109,7 +109,7 @@ void initializeGrids(
    }
    
    MPI_Comm comm = MPI_COMM_WORLD;
-   int neighborhood_size = max(FS_STENCIL_WIDTH, VLASOV_STENCIL_WIDTH); 
+   int neighborhood_size = max(FS_STENCIL_WIDTH, VLASOV_STENCIL_WIDTH+1); 
 
    const std::array<uint64_t, 3> grid_length = {{P::xcells_ini, P::ycells_ini, P::zcells_ini}};
    dccrg::Cartesian_Geometry::Parameters geom_params;
@@ -744,7 +744,7 @@ void report_grid_memory_consumption(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Ge
 void deallocateRemoteCellBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid) {
    const std::vector<uint64_t> incoming_cells
      //      = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
-           = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL);
+           = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ALLPROPLOCAL);
    for(unsigned int i=0;i<incoming_cells.size();i++){
       uint64_t cell_id=incoming_cells[i];
       SpatialCell* cell = mpiGrid[cell_id];
@@ -867,18 +867,15 @@ FULL (Includes all possible communication)
 
 -----------
 
-VLASOV_ONLYLOCAL (for ghost propagation)
+VLASOV_ALLPROPLOCAL (for ghost propagation)
 
- Z:         XY:
-           xxxxxxxxx
- xxxxxxx   xxxxxxxxx
- xxxxxxx   xxxxxxxxx
- xxxoxxx   xxxxoxxxx
- xxxxxxx   xxxxxxxxx
- xxxxxxx   xxxxxxxxx
-           xxxxxxxxx
+ xxxxxxx
+ xxxxxxx
+ xxxoxxx
+ xxxxxxx
+ xxxxxxx
 
-VLASOV_ONLYLOCAL_Z (X,Y) is pm 2 (3) cells
+VLASOV_ALLPROPLOCAL_Z (X,Y) is pm stencilwidth cells
  
 
 SHIFT_M_X    ox
@@ -1014,9 +1011,9 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
 
    neighborhood.clear();
    // Test neighbourhood for all-local propagation
-   for (int x = -VLASOV_STENCIL_WIDTH-2; x <= VLASOV_STENCIL_WIDTH+2; ++x) {
-     for (int y = -VLASOV_STENCIL_WIDTH-2; y <= VLASOV_STENCIL_WIDTH+2; ++y) {
-       for (int z = -VLASOV_STENCIL_WIDTH-1; z <= VLASOV_STENCIL_WIDTH+1; ++z) {
+   for (int x = -(VLASOV_STENCIL_WIDTH+1); x <= (VLASOV_STENCIL_WIDTH+1); ++x) {
+     for (int y = -(VLASOV_STENCIL_WIDTH+1); y <= (VLASOV_STENCIL_WIDTH+1); ++y) {
+       for (int z = -(VLASOV_STENCIL_WIDTH+1); z <= (VLASOV_STENCIL_WIDTH+1); ++z) {
             if (x == 0 && y == 0 && z == 0) {
                continue;
             }
@@ -1025,7 +1022,7 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
        }
      }
    }
-   mpiGrid.add_neighborhood(VLASOV_ONLYLOCAL, neighborhood);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL, neighborhood);
 
    neighborhood.clear();
    for (int y = -2; y <= 2; ++y) {
@@ -1033,32 +1030,32 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
        neighborhood.push_back({{0, y, 0}});
      }
    }
-   mpiGrid.add_neighborhood(VLASOV_ONLYLOCAL_Y, neighborhood);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_Y, neighborhood);
 
    neighborhood.clear();
-   for (int x = -2; x <= 2; ++x) {
-     for (int y = -2; y <= 2; ++y) {
+   for (int y = -(VLASOV_STENCIL_WIDTH+1); y <= (VLASOV_STENCIL_WIDTH+1); ++y) {
+     for (int x = -2; x <= 2; ++x) {
        if (x == 0 && y == 0) {
-	 continue;
+   	 continue;
        }
        neigh_t offsets = {{x, y, 0}};
        neighborhood.push_back(offsets);
      }
    }
-   mpiGrid.add_neighborhood(VLASOV_ONLYLOCAL_X, neighborhood);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_X, neighborhood);
    neighborhood.clear();
-   for (int x = -2; x <= 2; ++x) {
-     for (int y = -2; y <= 2; ++y) {
+   for (int y = -(VLASOV_STENCIL_WIDTH+1); y <= (VLASOV_STENCIL_WIDTH+1); ++y) {
+     for (int x = -(VLASOV_STENCIL_WIDTH+1); x <= (VLASOV_STENCIL_WIDTH+1); ++x) {
        for (int z = -2; z <= 2; ++z) {
-	 if (x == 0 && y == 0 && z==0) {
-	   continue;
-	 }
-	 neigh_t offsets = {{x, y, z}};
-	 neighborhood.push_back(offsets);
+   	 if (x == 0 && y == 0 && z==0) {
+   	   continue;
+   	 }
+   	 neigh_t offsets = {{x, y, z}};
+   	 neighborhood.push_back(offsets);
        }
      }       
    }
-   mpiGrid.add_neighborhood(VLASOV_ONLYLOCAL_Z, neighborhood);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_Z, neighborhood);
 
    
    neighborhood.clear();

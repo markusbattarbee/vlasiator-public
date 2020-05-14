@@ -88,7 +88,7 @@ void calculateSpatialTranslation(
 ) {
 
     int trans_timer;
-    bool localTargetGridGenerated = false;
+    //bool localTargetGridGenerated = false;
     
     double t1;
     
@@ -106,7 +106,7 @@ void calculateSpatialTranslation(
     // Field solver neighborhood is simple
     //mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
     //mpiGrid.update_copies_of_remote_neighbors(SYSBOUNDARIES_NEIGHBORHOOD_ID);
-    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ONLYLOCAL);
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
     phiprof::stop(trans_timer);
     
     // ------------- SLICE - map dist function in Z --------------- //
@@ -203,9 +203,9 @@ void calculateSpatialTranslation(
    if (dt == 0.0) goto momentCalculation;
    
    phiprof::start("compute_cell_lists");
-   remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_X);
-   remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_Y);
-   remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ONLYLOCAL_Z);
+   remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ALLPROPLOCAL_X);
+   remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ALLPROPLOCAL_Y);
+   remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_ALLPROPLOCAL_Z);
    
    // Figure out which cells (+ ghost cells) need to be translated in each
    // direction for correct results
@@ -213,12 +213,15 @@ void calculateSpatialTranslation(
    /*
      for final y-translation, we need to have translate y for cells y\pm 1. 
      For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL)
+     remote target cells need to be y\pm2
 
-     Thus, x-translation must happen for cells y\pm(1+VLASOV_STENCIL) x\pm1
+     Thus, x-translation must happen for cells y\pm(1+VLASOV_STENCIL) x\pm1     
      For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL)
+     remote target cells need to be y\pm(1+VLASOV_STENCIL) x\pm2
 
      Thus, z-translation must happen for cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL) z\pm1
      For this, correct values need to exist in cells y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL) z\pm(1+VLASOV_STENCIL) (but the z\pm(1+VLASOV_STENCIL) already is ok)
+     and remote target cells need to be y\pm(1+VLASOV_STENCIL) x\pm(1+VLASOV_STENCIL) z\pm2
     */
    
    // result independent of particle species.
