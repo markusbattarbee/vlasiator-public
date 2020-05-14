@@ -233,6 +233,7 @@ void calculateSpatialTranslation(
       const auto faceNbrs = mpiGrid.get_face_neighbors_of(localCells[c]);      
       for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
+	 if (!do_translate_cell(mpiGrid[nbr.first])) continue;
 	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_y.begin(),
 						  local_propagated_cells_y.end(), nbr.first) == local_propagated_cells_y.end())) {
 	   local_propagated_cells_y.push_back(nbr.first);
@@ -247,6 +248,7 @@ void calculateSpatialTranslation(
        const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
        for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
+	 if (!do_translate_cell(mpiGrid[nbr.first])) continue;
 	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_x.begin(),
 						  local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
 	   local_propagated_cells_x.push_back(nbr.first);
@@ -259,6 +261,7 @@ void calculateSpatialTranslation(
      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_x[c]);      
      for (const auto nbr : faceNbrs) {
        if (mpiGrid.is_local(nbr.first)) continue;
+       if (!do_translate_cell(mpiGrid[nbr.first])) continue;
        if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_x.begin(),
 						local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
 	 local_propagated_cells_x.push_back(nbr.first);
@@ -273,6 +276,7 @@ void calculateSpatialTranslation(
        const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_z[c]);      
        for (const auto nbr : faceNbrs) {
 	 if (mpiGrid.is_local(nbr.first)) continue;
+	 if (!do_translate_cell(mpiGrid[nbr.first])) continue;
 	 if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_z.begin(),
 						  local_propagated_cells_z.end(), nbr.first) == local_propagated_cells_z.end())) {
 	   local_propagated_cells_z.push_back(nbr.first);
@@ -285,6 +289,7 @@ void calculateSpatialTranslation(
      const auto faceNbrs = mpiGrid.get_face_neighbors_of(local_propagated_cells_z[c]);      
      for (const auto nbr : faceNbrs) {
        if (mpiGrid.is_local(nbr.first)) continue;
+       if (!do_translate_cell(mpiGrid[nbr.first])) continue;
        if ((abs(nbr.second) == 3) && (std::find(local_propagated_cells_z.begin(),
 						local_propagated_cells_z.end(), nbr.first) == local_propagated_cells_z.end())) {
 	 local_propagated_cells_z.push_back(nbr.first);
