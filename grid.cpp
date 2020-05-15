@@ -109,7 +109,7 @@ void initializeGrids(
    }
    
    MPI_Comm comm = MPI_COMM_WORLD;
-   int neighborhood_size = max(FS_STENCIL_WIDTH, VLASOV_STENCIL_WIDTH); 
+   int neighborhood_size = max(FS_STENCIL_WIDTH, VLASOV_STENCIL_WIDTH+1); 
 
    const std::array<uint64_t, 3> grid_length = {{P::xcells_ini, P::ycells_ini, P::zcells_ini}};
    dccrg::Cartesian_Geometry::Parameters geom_params;
