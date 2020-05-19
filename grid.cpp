@@ -304,9 +304,9 @@ void initializeGrids(
    phiprof::start("Fetch Neighbour data");
    // update complete cell spatial data for full stencil (
    SpatialCell::set_mpi_transfer_type(Transfer::ALL_SPATIAL_DATA);
-   mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
-   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL_OUTER);
-   
+   //mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
+
    phiprof::stop("Fetch Neighbour data");
    
    if (P::isRestart == false) {
@@ -551,8 +551,8 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    // Communicate all spatial data for FULL neighborhood, which
    // includes all data with the exception of dist function data
    SpatialCell::set_mpi_transfer_type(Transfer::ALL_SPATIAL_DATA);
-   mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
-   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL_OUTER);
+   //mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
 
    phiprof::start("update block lists");
    //new partition, re/initialize blocklists of remote cells.
@@ -610,10 +610,14 @@ bool adjustVelocityBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& m
    
    phiprof::initializeTimer("Transfer with_content_list","MPI");
    phiprof::start("Transfer with_content_list");
+   // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_WITH_CONTENT_STAGE1 );
+   // mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+   // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_WITH_CONTENT_STAGE2 );
+   // mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_WITH_CONTENT_STAGE1 );
-   mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_WITH_CONTENT_STAGE2 );
-   mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
    phiprof::stop("Transfer with_content_list");
    
    //Adjusts velocity blocks in local spatial cells, doesn't adjust velocity blocks in remote cells.
@@ -773,10 +777,14 @@ void updateRemoteVelocityBlockLists(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Ge
    // then list. For large we do it in two steps
    phiprof::initializeTimer("Velocity block list update","MPI");
    phiprof::start("Velocity block list update");
+   // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE1);
+   // mpiGrid.update_copies_of_remote_neighbors(DIST_FUNC_NEIGHBORHOOD_ID);
+   // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
+   // mpiGrid.update_copies_of_remote_neighbors(DIST_FUNC_NEIGHBORHOOD_ID);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE1);
-   mpiGrid.update_copies_of_remote_neighbors(DIST_FUNC_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
-   mpiGrid.update_copies_of_remote_neighbors(DIST_FUNC_NEIGHBORHOOD_ID);
+   mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
    phiprof::stop("Velocity block list update");
 
    // Prepare spatial cells for receiving velocity block data
@@ -1044,7 +1052,9 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_OUTER, neighborhood);
 
    std::vector<neigh_t> neighborhood2;
-   int neigh_flip=0;
+   std::vector<neigh_t> neighborhood3;
+   std::vector<neigh_t> neighborhood4;
+   int neigh_flip=1;
    neighborhood.clear();
    // Test neighbourhood for all-local propagation
    for (int x = -(VLASOV_STENCIL_WIDTH); x <= (VLASOV_STENCIL_WIDTH); ++x) {
@@ -1054,18 +1064,27 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
 	   continue;
 	 }	    
 	 neigh_t offsets = {{x, y, z}};
-	 if (neigh_flip==0) {
+	 if (neigh_flip==1) {
 	   neighborhood.push_back(offsets);
-	   neigh_flip = 1;
-	 } else {
+	   neigh_flip = 2;
+	 } else if (neigh_flip==2) {
 	   neighborhood2.push_back(offsets);
-	   neigh_flip = 0;
+	   neigh_flip = 3;
+	 } else if (neigh_flip==3) {
+	   neighborhood3.push_back(offsets);
+	   neigh_flip = 4;
+	 } else {
+	   neighborhood4.push_back(offsets);
+	   neigh_flip = 1;
 	 }
        }
      }
    }
-   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_MEDIUM, neighborhood);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_MEDIUM1, neighborhood);
    mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_MEDIUM2, neighborhood2);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_MEDIUM3, neighborhood3);
+   mpiGrid.add_neighborhood(VLASOV_ALLPROPLOCAL_MEDIUM4, neighborhood4);
+   std::cerr<<"lengths "<<neighborhood.size()<<" "<<neighborhood2.size()<<" "<<neighborhood3.size()<<" "<<neighborhood4.size()<<std::endl;
 
    neighborhood.clear();
    for (int y = -2; y <= 2; ++y) {
@@ -1150,10 +1169,14 @@ bool validateMesh(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,c
 
       // Update velocity mesh in remote cells
       phiprof::start("MPI");
+      // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE1);
+      // mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+      // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
+      // mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE1);
-      mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+      mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
-      mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+      mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
       phiprof::stop("MPI");
             
       // Iterate over all local spatial cells and calculate 

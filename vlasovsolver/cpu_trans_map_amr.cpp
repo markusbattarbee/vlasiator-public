@@ -336,10 +336,15 @@ CellID selectNeighbor(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry> 
  *             the builder terminates.
  */
 setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry> &grid, 
-					setOfPencils &pencils, const CellID seedId,
-					vector<CellID> ids, const uint dimension, 
-					vector<uint> path, const vector<CellID> &endIds) {
+					setOfPencils &pencils, 
+					const CellID seedId,
+					vector<CellID> ids, 
+					const uint dimension, 
+					vector<uint> path, 
+					const vector<CellID> &endIds
+					) {
 
+  //std::cout<<"begin buildPencilsWithNeighbors "<<seedId<<std::endl;
    const bool debug = false;
    CellID nextNeighbor;
    CellID id = seedId;
@@ -388,6 +393,10 @@ setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Ca
          myId = parentId;
       }
    }
+
+   if (!grid.is_local(id)) {
+     std::cerr<<" id "<<id<<" seedId "<<seedId<<" pathL "<<path.size()<<" startingpathL "<<startingPathSize<<" startingreflev "<<startingRefLvl<<std::endl;
+   }
    
    while (id != INVALID_CELLID) {
 
@@ -396,7 +405,7 @@ setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Ca
       int refLvl = 0;
       
       // Find the refinement level in the neighboring cell. Check all possible neighbors
-      // in case some of them are remote.
+      // in case some of them are remote. (selectNeighbor returns INVALID_CELLID for remote cells)
       for (int tmpPath = 0; tmpPath < 4; ++tmpPath) {
          nextNeighbor = selectNeighbor(grid,id,dimension,tmpPath);
          if(nextNeighbor != INVALID_CELLID) {
@@ -475,7 +484,6 @@ setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Ca
 
          if ( std::any_of(endIds.begin(), endIds.end(), [nextNeighbor](uint i){return i == nextNeighbor;}) ||
               !do_translate_cell(grid[nextNeighbor])) {
-            
             nextNeighbor = INVALID_CELLID;
          } else {
             ids.push_back(nextNeighbor);
@@ -497,7 +505,11 @@ setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Ca
    y = coordinates[iy];
 
    pencils.addPencil(ids,x,y,periodic,path);
+   if (!grid.is_local(id)) {
+     std::cerr<<"Finished pencil id "<<id<<" seedId "<<seedId<<" pathL "<<path.size()<<" startingpathL "<<startingPathSize<<" startingreflev "<<startingRefLvl<<std::endl;
+   }
    
+   //std::cout<<"finish buildPencilsWithNeighbors "<<seedId<<std::endl;
    // TODO why do we have both return value and the argument modified in place? Could be made consistent.
    return pencils;
   
@@ -994,7 +1006,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    
    phiprof::start("setup");
 
-   const bool printPencils = false;
+   const bool printPencils = true;
    uint cell_indices_to_id[3]; /*< used when computing id of target cell in block*/
    unsigned char  cellid_transpose[WID3]; /*< defines the transpose for the solver internal (transposed) id: i + j*WID + k*WID2 to actual one*/
    // return if there's no cells to propagate
@@ -1004,7 +1016,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    }
 
    int myRank;
-   if(printPencils) MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
 
    // Vector with all cell ids
    vector<CellID> allCells(localPropagatedCells);
@@ -1013,7 +1025,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // Vectors of pointers to the cell structs
    std::vector<SpatialCell*> allCellsPointer(allCells.size());  
 
-   //std::cerr<<"// Initialize allCellsPointer "<<std::endl;
+   //std::cerr<<myRank<<" Initialize allCellsPointer "<<std::endl;
    // Initialize allCellsPointer
    #pragma omp parallel for
    for(uint celli = 0; celli < allCells.size(); celli++){
@@ -1053,7 +1065,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
 
    // compute pencils => set of pencils (shared datastructure)
    
-   //std::cerr<<"// getSeedIds "<<std::endl;
+   //std::cerr<<myRank<<" getSeedIds "<<std::endl;
    phiprof::start("getSeedIds");
    vector<CellID> seedIds;
    getSeedIds(mpiGrid, localPropagatedCells, dimension, seedIds);
@@ -1064,7 +1076,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // Output vectors for ready pencils
    setOfPencils pencils;
    
-   //std::cerr<<"// begin parallel "<<std::endl;
+   std::cerr<<myRank<<" begin parallel, seedIds "<<seedIds.size()<<std::endl;
 #pragma omp parallel
    {
       // Empty vectors for internal use of buildPencilsWithNeighbors. Could be default values but
@@ -1084,6 +1096,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
          thread_pencils = buildPencilsWithNeighbors(mpiGrid, thread_pencils, seedId, ids, dimension, path, seedIds);
       }
       
+      std::cerr<<myRank<<" critical sum pencils"<<std::endl;
       // accumulate thread results in global set of pencils
 #pragma omp critical
       {
@@ -1111,6 +1124,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
       }
    }
    
+   std::cerr<<myRank<<" check_ghost_cells"<<std::endl;
    // Check refinement of two ghost cells on each end of each pencil
    check_ghost_cells(mpiGrid,pencils,dimension);
    // ****************************************************************************   
@@ -1130,6 +1144,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    }
    phiprof::stop("buildPencils");
    
+   std::cerr<<myRank<<" get allCellsPointer"<<std::endl;
    // Get a pointer to the velocity mesh of the first spatial cell
    const vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh = allCellsPointer[0]->get_velocity_mesh(popID);
    
@@ -1141,6 +1156,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // TODO: Do this separately for each pencil?
    std::unordered_set<vmesh::GlobalID> unionOfBlocksSet;
    
+   std::cerr<<myRank<<" get unionOfBlocksSet"<<std::endl;
    for(auto cell : allCellsPointer) {
       vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& cvmesh = cell->get_velocity_mesh(popID);
       for (vmesh::LocalID block_i=0; block_i< cvmesh.size(); ++block_i) {
@@ -1162,6 +1178,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    
    // Compute spatial neighbors for target cells.
    // For targets we need the local cells, plus a padding of 1 cell at both ends
+   std::cerr<<myRank<<" computeSpatialTargetCellsForPencils"<<std::endl;
    phiprof::start("computeSpatialTargetCellsForPencils");
    std::vector<SpatialCell*> targetCells(pencils.sumOfLengths + pencils.N * 2 * nTargetNeighborsPerPencil );
    computeSpatialTargetCellsForPencils(mpiGrid, pencils, dimension, targetCells.data());
@@ -1173,6 +1190,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    int t1 = phiprof::initializeTimer("mapping");
    int t2 = phiprof::initializeTimer("store");
    
+   std::cerr<<myRank<<" begin PARALLEL2"<<std::endl;
 #pragma omp parallel
    {
       // declarations for variables needed by the threads
