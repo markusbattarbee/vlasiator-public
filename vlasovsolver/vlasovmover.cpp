@@ -100,15 +100,50 @@ void calculateSpatialTranslation(
 	and also some required ghost cells
     **/
 
+    std::cerr<<"MPI "<<myRank<<" dt "<<dt<<" time "<<time<<" pop "<<popID<<" npencils "<<nPencils.size()<<std::endl;
+    std::cerr<<"lengths "<<local_propagated_cells_x.size()
+	     <<" "<<local_propagated_cells_y.size()
+	     <<" "<<local_propagated_cells_z.size()
+	     <<" "<<remoteTargetCellsx.size()
+	     <<" "<<remoteTargetCellsy.size()
+	     <<" "<<remoteTargetCellsz.size()<<std::endl;
     trans_timer=phiprof::initializeTimer("transfer-stencil-data-all","MPI");
     phiprof::start(trans_timer);
     SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
     // Field solver neighborhood is simple
     //mpiGrid.update_copies_of_remote_neighbors(FIELD_SOLVER_NEIGHBORHOOD_ID);
     //mpiGrid.update_copies_of_remote_neighbors(SYSBOUNDARIES_NEIGHBORHOOD_ID);
-    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
+    //mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL);
+    std::cerr<<"BARRIER "<<myRank<<std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // std::cerr<<"Update FULL_NEIGHBORHOOD "<<myRank<<std::endl;
+    // mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
+    // std::cerr<<"DONE "<<myRank<<std::endl;
+
+    std::cerr<<"Update NEAREST_NEIGHBORHOOD_ID "<<myRank<<std::endl;
+    mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+    std::cerr<<"DONE "<<myRank<<std::endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    std::cerr<<"Update VLASOV_ALLPROPLOCAL_MEDIUM "<<myRank<<std::endl;
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL_MEDIUM);
+    std::cerr<<"DONE "<<myRank<<std::endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    std::cerr<<"Update VLASOV_ALLPROPLOCAL_MEDIUM2 "<<myRank<<std::endl;
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL_MEDIUM2);
+    std::cerr<<"DONE "<<myRank<<std::endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cerr<<"Update VLASOV_ALLPROPLOCAL_OUTER "<<myRank<<std::endl;
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_ALLPROPLOCAL_OUTER);
+    std::cerr<<"DONE "<<myRank<<std::endl;
     phiprof::stop(trans_timer);
     
+    std::cerr<<"Z"<<std::endl;
     // ------------- SLICE - map dist function in Z --------------- //
     if(P::zcells_ini > 1){
 
@@ -129,6 +164,7 @@ void calculateSpatialTranslation(
 //   phiprof::stop(bt);
    
    // ------------- SLICE - map dist function in X --------------- //
+    std::cerr<<"X"<<std::endl;
    if(P::xcells_ini > 1){
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-x");
@@ -147,6 +183,7 @@ void calculateSpatialTranslation(
 //   phiprof::stop(bt);
 
    // ------------- SLICE - map dist function in Y --------------- //
+    std::cerr<<"Y"<<std::endl;
    if(P::ycells_ini > 1) {
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-y");
@@ -250,10 +287,14 @@ void calculateSpatialTranslation(
        for (const auto nbr : faceNbrs) {
 	 if (nbr.first==NULL) continue;
 	 if (mpiGrid.is_local(nbr.first)) continue;
-	 if (!do_translate_cell(mpiGrid[nbr.first])) continue;
+	 if (!do_translate_cell(mpiGrid[nbr.first])) {
+	   //std::cerr<<"X_y "<<vs<<" "<< local_propagated_cells_x[c]<<" do not translate "<<nbr.second<<" nbr  "<<nbr.first<<std::endl; //MCB
+	   continue;
+	 }
 	 if ((abs(nbr.second) == 2) && (std::find(local_propagated_cells_x.begin(),
 						  local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
 	   local_propagated_cells_x.push_back(nbr.first);
+	   //std::cerr<<"X_y "<<vs<<" "<< local_propagated_cells_x[c]<<" add "<<nbr.second<<" nbr "<<nbr.first<<std::endl; //MCB
 	 }
        }
      }
@@ -268,6 +309,7 @@ void calculateSpatialTranslation(
        if ((abs(nbr.second) == 1) && (std::find(local_propagated_cells_x.begin(),
 						local_propagated_cells_x.end(), nbr.first) == local_propagated_cells_x.end())) {
 	 local_propagated_cells_x.push_back(nbr.first);
+	 //std::cerr<<"X_x "<< local_propagated_cells_x[c]<<" add "<<nbr.second<<" nbr "<<nbr.first<<std::endl; //MCB
        }
      }
    }

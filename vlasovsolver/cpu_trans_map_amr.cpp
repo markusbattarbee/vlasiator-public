@@ -94,10 +94,11 @@ void computeSpatialSourceCellsForPencil(const dccrg::Dccrg<SpatialCell,dccrg::Ca
    vector<CellID> ids = pencils.getIds(iPencil);
    
    int neighborhood = getNeighborhood(dimension,2);
-
+ 
    // Get pointers for each cell id of the pencil
    for (int i = 0; i < L; ++i) {
       sourceCells[i + VLASOV_STENCIL_WIDTH] = mpiGrid[ids[i]];
+      //std::cerr<<iPencil<<" computeSpatialSource dim "<<dimension<<" ids "<<ids[i]<<std::endl;
    }
    
    // Insert pointers for neighbors of ids.front() and ids.back()
@@ -113,7 +114,7 @@ void computeSpatialSourceCellsForPencil(const dccrg::Dccrg<SpatialCell,dccrg::Ca
          distances.insert(nbrPair.second[dimension]);
       }
    }
-
+   //   std::cerr<<iPencil<<" distances done"<<std::endl;
 
    int iSrc = VLASOV_STENCIL_WIDTH - 1;
    // Iterate through distances for VLASOV_STENCIL_WIDTH elements starting from the smallest distance.
@@ -136,6 +137,7 @@ void computeSpatialSourceCellsForPencil(const dccrg::Dccrg<SpatialCell,dccrg::Ca
          sourceCells[iSrc--] = mpiGrid[neighbors.at(pencils.path[iPencil][refLvl])];
       }
    }
+   //std::cerr<<iPencil<<" sourcecells done"<<std::endl;
 
    iSrc = L + VLASOV_STENCIL_WIDTH;
    distances.clear();
@@ -377,7 +379,9 @@ setOfPencils buildPencilsWithNeighbors( const dccrg::Dccrg<SpatialCell,dccrg::Ca
             step = 2;
          } else if (myCoords.at(ix) > parentCoords.at(ix) && myCoords.at(iy) > parentCoords.at(iy)) {
             step = 3;
-         }
+         } else {
+	   std::cout<<"ix "<<ix<<" iy "<<iy<<" myCoords "<<myCoords.at(ix)<<" "<<myCoords.at(iy)<<" parentCoords "<<parentCoords.at(ix)<<" "<<parentCoords.at(iy)<<" myid "<<myId<<" parentId "<<parentId<<std::endl;
+	 }
 
          it = path.insert(it, step);
 
@@ -1009,6 +1013,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // Vectors of pointers to the cell structs
    std::vector<SpatialCell*> allCellsPointer(allCells.size());  
 
+   //std::cerr<<"// Initialize allCellsPointer "<<std::endl;
    // Initialize allCellsPointer
    #pragma omp parallel for
    for(uint celli = 0; celli < allCells.size(); celli++){
@@ -1048,6 +1053,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
 
    // compute pencils => set of pencils (shared datastructure)
    
+   //std::cerr<<"// getSeedIds "<<std::endl;
    phiprof::start("getSeedIds");
    vector<CellID> seedIds;
    getSeedIds(mpiGrid, localPropagatedCells, dimension, seedIds);
@@ -1058,6 +1064,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // Output vectors for ready pencils
    setOfPencils pencils;
    
+   //std::cerr<<"// begin parallel "<<std::endl;
 #pragma omp parallel
    {
       // Empty vectors for internal use of buildPencilsWithNeighbors. Could be default values but
@@ -1366,10 +1373,12 @@ int get_sibling_index(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGr
       return ERROR;
    }
 
-   //std::array<uint64_t, 8> siblingarr = mpiGrid.mapping.get_all_children(parent);
+   /* DCCRG MASTER
    std::array<uint64_t, 8> siblingarr = mpiGrid.mapping.get_all_children(parent);
-   //auto index = std::distance(siblingarr[0], std::find(siblingarr[0], siblingarr[0]+sizeof(siblingarr) / sizeof(siblingarr[0]), cellid));
    vector<CellID> siblings(&siblingarr[0], &siblingarr[0] + sizeof(siblingarr) / sizeof(siblingarr[0]));
+   */
+   vector<CellID> siblings = mpiGrid.get_all_children(parent);
+
    auto location = std::find(siblings.begin(),siblings.end(),cellid);
    auto index = std::distance(siblings.begin(), location);
 
@@ -1597,7 +1606,8 @@ void update_remote_mapping_contribution_amr(
 
                   recvIndex = mySiblingIndex;
                   
-                  auto mySiblings = mpiGrid.mapping.get_all_children(mpiGrid.get_parent(c));
+                  //auto mySiblings = mpiGrid.mapping.get_all_children(mpiGrid.get_parent(c)); //DCCRG master
+                  auto mySiblings = mpiGrid.get_all_children(mpiGrid.get_parent(c));
                   auto myIndices = mpiGrid.mapping.get_indices(c);
                   
                   // Allocate memory for each sibling to receive all the data sent by coarser ncell. 
