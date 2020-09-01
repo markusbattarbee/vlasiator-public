@@ -78,6 +78,7 @@ void calculateSpatialTranslation(
         const vector<CellID>& local_propagated_cells_y,
         const vector<CellID>& local_propagated_cells_z,
         const vector<CellID>& remoteTargetCellsAll,
+        vector<uint>& nPencils,
         creal dt,
         const uint popID,
         Real &time
