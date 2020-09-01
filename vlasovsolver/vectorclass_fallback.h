@@ -28,13 +28,16 @@
 
 */
 
-
+// Prefetching does nothing in the fallback vectorclass, if no system implementation
+// is available
+#ifndef _mm_prefetch
+#define _mm_prefetch(...)
+#endif
 
 
 template <class T>
 class Vec4Simple {
 public:
-   const int len = 4;
    T val[4] __attribute__((aligned(32)));
    // donot initi v
    Vec4Simple() { }
@@ -227,10 +230,10 @@ template <class T, class S>
 static inline Vec4Simple<T> operator * (const S &l,const Vec4Simple<T> &r)
 {
    return Vec4Simple<T>(
-      r.val[0]*l,
-      r.val[1]*l,
-      r.val[2]*l,
-      r.val[3]*l
+      l*r.val[0],
+      l*r.val[1],
+      l*r.val[2],
+      l*r.val[3]
    );
 }
 
@@ -255,6 +258,17 @@ static inline Vec4Simple<T> operator / (const Vec4Simple<T> &l, const S &r)
       l.val[1]/r,
       l.val[2]/r,
       l.val[3]/r
+   );
+}
+
+template <class T, class S>
+static inline Vec4Simple<T> operator / (const S &l, const Vec4Simple<T> &r )
+{
+   return Vec4Simple<T>(
+      l/r.val[0],
+      l/r.val[1],
+      l/r.val[2],
+      l/r.val[3]
    );
 }
 
@@ -317,6 +331,38 @@ static inline Vec4Simple<bool> operator == (const Vec4Simple<T> &l, const Vec4Si
    );
 }
 
+template <class T, class S>
+static inline Vec4Simple<bool> operator == (const Vec4Simple<T> &l, const S& r)
+{
+   return Vec4Simple<bool>(
+      l.val[0] == r,
+      l.val[1] == r,
+      l.val[2] == r,
+      l.val[3] == r
+   );
+}
+
+template <class T, class S>
+static inline Vec4Simple<bool> operator != (const Vec4Simple<T> &l, const S& r)
+{
+   return Vec4Simple<bool>(
+      l.val[0] != r,
+      l.val[1] != r,
+      l.val[2] != r,
+      l.val[3] != r
+   );
+}
+
+template <class T>
+static inline Vec4Simple<bool> operator ! (const Vec4Simple<T> &l)
+{
+   return Vec4Simple<bool>(
+      !l.val[0],
+      !l.val[1],
+      !l.val[2],
+      !l.val[3]
+   );
+}
 
 
 template <class T>
@@ -894,6 +940,22 @@ static inline Vec8Simple<T> operator / (const Vec8Simple<T> &l, const S &r)
    );
 }
 
+template <class T, class S>
+static inline Vec8Simple<T> operator / (const S &l, const Vec8Simple<T> &r)
+{
+   return Vec8Simple<T>(
+      l/r.val[0],
+      l/r.val[1],
+      l/r.val[2],
+      l/r.val[3],
+      l/r.val[4],
+      l/r.val[5],
+      l/r.val[6],
+      l/r.val[7]
+      
+   );
+}
+
 template <class T>
 static inline  Vec8Simple<T> & operator += (Vec8Simple<T> &l, const Vec8Simple<T> &r){
    l=l+r;
@@ -967,6 +1029,51 @@ static inline Vec8Simple<bool> operator == (const Vec8Simple<T> &l, const Vec8Si
    );
 }
 
+template <class T, class S>
+static inline Vec8Simple<bool> operator == (const Vec8Simple<T> &l, const S &r)
+{
+   return Vec8Simple<bool>(
+      l.val[0] == r,
+      l.val[1] == r,
+      l.val[2] == r,
+      l.val[3] == r,
+      l.val[4] == r,
+      l.val[5] == r,
+      l.val[6] == r,
+      l.val[7] == r
+   );
+}
+
+
+template <class T>
+static inline Vec8Simple<bool> operator != (const Vec8Simple<T> &l, const Vec8Simple<T> &r)
+{
+   return Vec8Simple<bool>(
+      l.val[0] != r.val[0],
+      l.val[1] != r.val[1],
+      l.val[2] != r.val[2],
+      l.val[3] != r.val[3],
+      l.val[4] != r.val[4],
+      l.val[5] != r.val[5],
+      l.val[6] != r.val[6],
+      l.val[7] != r.val[7]
+   );
+}
+
+template <class T, class S>
+static inline Vec8Simple<bool> operator != (const Vec8Simple<T> &l, const S &r)
+{
+   return Vec8Simple<bool>(
+      l.val[0] != r,
+      l.val[1] != r,
+      l.val[2] != r,
+      l.val[3] != r,
+      l.val[4] != r,
+      l.val[5] != r,
+      l.val[6] != r,
+      l.val[7] != r
+   );
+}
 
 
 template <class T>
@@ -1174,7 +1281,21 @@ template <class T, class S>
 }
 
 
-
+template <class T>
+static inline Vec8Simple<bool> operator ! (const Vec8Simple<T> &l) 
+{
+   return Vec8Simple<bool>(
+      !l.val[0],
+      !l.val[1],
+      !l.val[2],
+      !l.val[3],
+      !l.val[4],
+      !l.val[5],
+      !l.val[6],
+      !l.val[7]
+      
+   );
+}
 
 
 template <class T>
