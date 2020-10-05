@@ -165,10 +165,7 @@ void calculateDerivatives(
 
       leftMoments = momentsGrid.get(i-1,j,k);
       rghtMoments = momentsGrid.get(i+1,j,k);
-      dMoments->at(fsgrids::dmoments::RHOQEx) += Erhoqk_100 * (
-                                                                leftMoments->at(fsgrids::moments::RHOQE) -
-                                                                rghtMoments->at(fsgrids::moments::RHOQE)
-                                                               );
+      dMoments->at(fsgrids::dmoments::RHOQEx) += -Erhoqk_100 * limiter(leftMoments->at(fsgrids::moments::RHOQE),centMoments->at(fsgrids::moments::RHOQE),rghtMoments->at(fsgrids::moments::RHOQE));
    }
 
    // Calculate y-derivatives (is not TVD for AMR mesh):
@@ -217,10 +214,7 @@ void calculateDerivatives(
 
       leftMoments = momentsGrid.get(i,j-1,k);
       rghtMoments = momentsGrid.get(i,j+1,k);
-      dMoments->at(fsgrids::dmoments::RHOQEy) += Erhoqk_100 * (
-                                                                leftMoments->at(fsgrids::moments::RHOQE) -
-                                                                rghtMoments->at(fsgrids::moments::RHOQE)
-                                                               );
+      dMoments->at(fsgrids::dmoments::RHOQEy) += -Erhoqk_100 * limiter(leftMoments->at(fsgrids::moments::RHOQE),centMoments->at(fsgrids::moments::RHOQE),rghtMoments->at(fsgrids::moments::RHOQE));
    }
 
 
@@ -268,10 +262,7 @@ void calculateDerivatives(
 
       leftMoments = momentsGrid.get(i,j,k-1);
       rghtMoments = momentsGrid.get(i,j,k+1);
-      dMoments->at(fsgrids::dmoments::RHOQEz) += Erhoqk_100 * (
-                                                                leftMoments->at(fsgrids::moments::RHOQE) -
-                                                                rghtMoments->at(fsgrids::moments::RHOQE)
-                                                               );
+      dMoments->at(fsgrids::dmoments::RHOQEz) += -Erhoqk_100 * limiter(leftMoments->at(fsgrids::moments::RHOQE),centMoments->at(fsgrids::moments::RHOQE),rghtMoments->at(fsgrids::moments::RHOQE));
    }
 
 
@@ -340,8 +331,8 @@ void calculateDerivatives(
 
    // Calculate mixed step E field contributions for PQN E field
    // nb. no momentsGrid calls in the previous mixed derivatives calls
-   if (sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
-
+   //if (sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
+   if (false) {
       // xy
       dbotLeft = momentsGrid.get(i-1,j-1,k);
       dbotRght = momentsGrid.get(i+1,j-1,k);
@@ -360,7 +351,6 @@ void calculateDerivatives(
             - dtopLeft->at(fsgrids::moments::RHOQE)
             - dtopRght->at(fsgrids::moments::RHOQE)
             );
-
 
       // yz
       dbotLeft = momentsGrid.get(i,j-1,k-1);
