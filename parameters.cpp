@@ -90,6 +90,7 @@ vector<int> P::systemWrites;
 std::vector<std::pair<std::string,std::string>> P::systemWriteHints;
 
 Real P::saveRestartWalltimeInterval = -1.0;
+uint P::saveRestartDtInterval = 0;
 uint P::exitAfterRestarts = numeric_limits<uint>::max();
 uint64_t P::vlsvBufferSize = 0;
 int P::restartStripeFactor = -1;
@@ -166,6 +167,7 @@ bool Parameters::addParameters(){
    Readparameters::add("io.write_initial_state","Write initial state, not even the 0.5 dt propagation is done. Do not use for restarting. ",false);
 
    Readparameters::add("io.restart_walltime_interval","Save the complete simulation in given walltime intervals. Negative values disable writes.",-1.0);
+   Readparameters::add("io.restart_dt_interval","Save the complete simulation in tstep intervals. Zero value disables.",0);
    Readparameters::add("io.number_of_restarts","Exit the simulation after certain number of walltime-based restarts.",numeric_limits<uint>::max());
    Readparameters::add("io.vlsv_buffer_size", "Buffer size passed to VLSV writer (bytes, up to uint64_t), default 0 as this is sensible on sisu", 0);
    Readparameters::add("io.write_restart_stripe_factor","Stripe factor for restart writing.", -1);
@@ -319,6 +321,7 @@ bool Parameters::getParameters(){
    Readparameters::get("io.system_write_distribution_shell_stride", P::systemWriteDistributionWriteShellStride);
    Readparameters::get("io.write_initial_state", P::writeInitialState);
    Readparameters::get("io.restart_walltime_interval", P::saveRestartWalltimeInterval);
+   Readparameters::get("io.restart_dt_interval", P::saveRestartDtInterval);
    Readparameters::get("io.number_of_restarts", P::exitAfterRestarts);
    Readparameters::get("io.vlsv_buffer_size", P::vlsvBufferSize);
    Readparameters::get("io.write_restart_stripe_factor", P::restartStripeFactor);

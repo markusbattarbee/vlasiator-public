@@ -736,10 +736,11 @@ int main(int argn,char* args[]) {
       // Combined with checking of additional load balancing to have only one collective call.
       phiprof::start("compute-is-restart-written-and-extra-LB");
       if (myRank == MASTER_RANK) {
-         if (  (P::saveRestartWalltimeInterval >= 0.0
+         if (  (P::saveRestartWalltimeInterval >= 0.0 
             && (P::saveRestartWalltimeInterval*wallTimeRestartCounter <=  MPI_Wtime()-initialWtime
-               || P::tstep == P::tstep_max
+               || P::tstep == P::tstep_max 
                || P::t >= P::t_max))
+            || P::saveRestartDtInterval > 0 && P::tstep % P::saveRestartDtInterval == 0 //NB! short-circuit && guards from fp expection
             || (doBailout > 0 && P::bailout_write_restart)
             || globalflags::writeRestart
          ) {
@@ -919,8 +920,8 @@ int main(int argn,char* args[]) {
          //setupTechnicalFsGrid(mpiGrid, cells, technicalGrid);
          feedMomentsIntoFsGrid(mpiGrid, cells, momentsGrid, technicalGrid, false);
          feedMomentsIntoFsGrid(mpiGrid, cells, momentsDt2Grid, technicalGrid, true);
-	 momentsGrid.updateGhostCells();
-	 momentsDt2Grid.updateGhostCells();
+	      momentsGrid.updateGhostCells();
+	      momentsDt2Grid.updateGhostCells();
          phiprof::stop("fsgrid-coupling-in");
          
          propagateFields(
@@ -954,24 +955,24 @@ int main(int argn,char* args[]) {
 
       // Additional feeding of moments into fsgrid required by electron runs
       if (P::ResolvePlasmaPeriod==true) {
-	phiprof::start("fsgrid-coupling-in");
-	feedMomentsIntoFsGrid(mpiGrid, cells, momentsGrid, technicalGrid, false);
-	feedMomentsIntoFsGrid(mpiGrid, cells, momentsDt2Grid, technicalGrid, true);
-	momentsGrid.updateGhostCells();
-	momentsDt2Grid.updateGhostCells();
-	phiprof::stop("fsgrid-coupling-in");
-	
-	calculateDerivativesSimple(perBGrid, perBDt2Grid, momentsGrid, momentsDt2Grid, dPerBGrid, dMomentsGrid, technicalGrid, sysBoundaries, RK_ORDER1, true);
-	if(P::ohmGradPeTerm > 0){
-	  calculateGradPeTermSimple(EGradPeGrid, momentsGrid, momentsDt2Grid, dMomentsGrid, technicalGrid, sysBoundaries, RK_ORDER1);
-	}
+         phiprof::start("fsgrid-coupling-in");
+         feedMomentsIntoFsGrid(mpiGrid, cells, momentsGrid, technicalGrid, false);
+         feedMomentsIntoFsGrid(mpiGrid, cells, momentsDt2Grid, technicalGrid, true);
+         momentsGrid.updateGhostCells();
+         momentsDt2Grid.updateGhostCells();
+         phiprof::stop("fsgrid-coupling-in");
+         
+         calculateDerivativesSimple(perBGrid, perBDt2Grid, momentsGrid, momentsDt2Grid, dPerBGrid, dMomentsGrid, technicalGrid, sysBoundaries, RK_ORDER1, true);
+         if(P::ohmGradPeTerm > 0){
+            calculateGradPeTermSimple(EGradPeGrid, momentsGrid, momentsDt2Grid, dMomentsGrid, technicalGrid, sysBoundaries, RK_ORDER1);
+         }
 
-	phiprof::start("getFieldsFromFsGrid");
-	// Copy results back from fsgrid.
-	volGrid.updateGhostCells();
-	technicalGrid.updateGhostCells();
-	getFieldsFromFsGrid(volGrid, BgBGrid, EGradPeGrid, dMomentsGrid, technicalGrid, mpiGrid, cells);
-	phiprof::stop("getFieldsFromFsGrid");
+         phiprof::start("getFieldsFromFsGrid");
+         // Copy results back from fsgrid.
+         volGrid.updateGhostCells();
+         technicalGrid.updateGhostCells();
+         getFieldsFromFsGrid(volGrid, BgBGrid, EGradPeGrid, dMomentsGrid, technicalGrid, mpiGrid, cells);
+         phiprof::stop("getFieldsFromFsGrid");
       }
 
       phiprof::start("Velocity-space");
