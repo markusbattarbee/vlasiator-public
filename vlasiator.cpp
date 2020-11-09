@@ -740,7 +740,7 @@ int main(int argn,char* args[]) {
             && (P::saveRestartWalltimeInterval*wallTimeRestartCounter <=  MPI_Wtime()-initialWtime
                || P::tstep == P::tstep_max 
                || P::t >= P::t_max))
-            || P::saveRestartDtInterval > 0 && P::tstep % P::saveRestartDtInterval == 0 //NB! short-circuit && guards from fp expection
+            || (P::saveRestartDtInterval > 0 && P::tstep % P::saveRestartDtInterval == 0) //NB! short-circuit && guards from fp expection
             || (doBailout > 0 && P::bailout_write_restart)
             || globalflags::writeRestart
          ) {

@@ -244,19 +244,19 @@ void initializeGrids(
       bool needCurl=false;
       project.setupBeforeSetCell(cells, mpiGrid, needCurl);
       if (needCurl==true) {
-	 // Communicate the perturbed B-fields and E-fileds read from the start file over to FSgrid
-	 feedPerBIntoFsGrid(mpiGrid, cells, perBGrid);
-	 perBGrid.updateGhostCells();
-	 feedEIntoFsGrid(mpiGrid, cells, EGrid);
-	 EGrid.updateGhostCells();
-	 // Calculate volumetric derivatives of B for curl
+         // Communicate the perturbed B-fields and E-fileds read from the start file over to FSgrid
+         feedPerBIntoFsGrid(mpiGrid, cells, perBGrid);
+         perBGrid.updateGhostCells();
+         feedEIntoFsGrid(mpiGrid, cells, EGrid);
+         EGrid.updateGhostCells();
+         // Calculate volumetric derivatives of B for curl
          calculateDerivativesOnlyPerB(perBGrid, dPerBGrid, technicalGrid);
-	 dPerBGrid.updateGhostCells();
-	 calculateVolumeAveragedFields(perBGrid, EGrid, dPerBGrid,volGrid,technicalGrid);
-	 volGrid.updateGhostCells();
-	 calculateBVOLDerivativesSimple(volGrid, technicalGrid, sysBoundaries);
-	 // Gather values back to mpiGrid
-	 getdBvolFieldsFromFsGrid(volGrid, BgBGrid, technicalGrid, mpiGrid, cells);	 
+         dPerBGrid.updateGhostCells();
+         calculateVolumeAveragedFields(perBGrid, EGrid, dPerBGrid,volGrid,technicalGrid);
+         volGrid.updateGhostCells();
+         calculateBVOLDerivativesSimple(volGrid, technicalGrid, sysBoundaries);
+         // Gather values back to mpiGrid
+         getdBvolFieldsFromFsGrid(volGrid, BgBGrid, technicalGrid, mpiGrid, cells);	 
       }
 
       phiprof::start("setCell");
@@ -327,11 +327,11 @@ void initializeGrids(
    mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
    
    phiprof::stop("Fetch Neighbour data");
-   
+
    if (P::isRestart == false) {
+      
       // Apply boundary conditions so that we get correct initial moments
       sysBoundaries.applySysBoundaryVlasovConditions(mpiGrid,Parameters::t, true); // It doesn't matter here whether we put _R or _V moments
-      
       //compute moments, and set them  in RHO* and RHO_*_DT2. If restart, they are already read in
       phiprof::start("Init moments");
       calculateInitialVelocityMoments(mpiGrid);
