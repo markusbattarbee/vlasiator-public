@@ -36,7 +36,8 @@ using namespace std;
  * @param doNotSkip If false, DO_NOT_COMPUTE cells are skipped.*/
 void calculateCellMoments(spatial_cell::SpatialCell* cell,
                           const bool& computeSecond,
-                          const bool& doNotSkip) {
+                          const bool& doNotSkip,
+                          const bool& isRestart) {
 
     // if doNotSkip == true then the first clause is false and we will never return,
     // i.e. always compute, otherwise we skip DO_NOT_COMPUTE cells
@@ -46,7 +47,7 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
     }
 
     // Clear old moments to zero value
-    if (skipMoments == false) {
+    if (skipMoments == false && isRestart == false) {
         cell->parameters[CellParams::RHOM  ] = 0.0;
         cell->parameters[CellParams::VX] = 0.0;
         cell->parameters[CellParams::VY] = 0.0;
@@ -91,23 +92,26 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
           pop.V[1] = divideIfNonZero(array[2], array[0]);
           pop.V[2] = divideIfNonZero(array[3], array[0]);
           
-          if (istestspecies == false ) {
+          if (istestspecies == false && isRestart == false) {
               // Store species' contribution to bulk velocity moments
               cell->parameters[CellParams::RHOM  ] += array[0]*mass;
               cell->parameters[CellParams::VX] += array[1]*mass;
               cell->parameters[CellParams::VY] += array[2]*mass;
               cell->parameters[CellParams::VZ] += array[3]*mass;
-	      cell->parameters[CellParams::RHOQ  ] += array[0]*charge;
+	          cell->parameters[CellParams::RHOQ  ] += array[0]*charge;
           }
 	  /* RHOQE is accumulated for test species as well. This is only used for calculating
 	     electric field due to charge imbalance in electron runs. */
-	  cell->parameters[CellParams::RHOQE  ] += array[0]*charge;
+          if(isRestart == false){
+	        cell->parameters[CellParams::RHOQE  ] += array[0]*charge;
+          }
 	  
        } // for-loop over particle species
-       
-       cell->parameters[CellParams::VX] = divideIfNonZero(cell->parameters[CellParams::VX], cell->parameters[CellParams::RHOM]);
-       cell->parameters[CellParams::VY] = divideIfNonZero(cell->parameters[CellParams::VY], cell->parameters[CellParams::RHOM]);
-       cell->parameters[CellParams::VZ] = divideIfNonZero(cell->parameters[CellParams::VZ], cell->parameters[CellParams::RHOM]);
+       if(isRestart == false){
+          cell->parameters[CellParams::VX] = divideIfNonZero(cell->parameters[CellParams::VX], cell->parameters[CellParams::RHOM]);
+          cell->parameters[CellParams::VY] = divideIfNonZero(cell->parameters[CellParams::VY], cell->parameters[CellParams::RHOM]);
+          cell->parameters[CellParams::VZ] = divideIfNonZero(cell->parameters[CellParams::VZ], cell->parameters[CellParams::RHOM]);
+       }
     }
 
     // Compute second moments only if requested
@@ -145,7 +149,7 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
        // Store species' contribution to bulk velocity moments
        for (int i=0; i<6; ++i) pop.P[i] = mass*array[i];
        
-       if (istestspecies == false ) {
+       if (istestspecies == false && isRestart == false) {
            cell->parameters[CellParams::P_11] += pop.P[0];
            cell->parameters[CellParams::P_22] += pop.P[1];
            cell->parameters[CellParams::P_33] += pop.P[2];

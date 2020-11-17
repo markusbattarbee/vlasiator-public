@@ -348,7 +348,14 @@ void calculateSpatialTranslation(
    
    // Mapping complete, update moments and maximum dt limits //
 momentCalculation:
-   calculateMoments_R(mpiGrid,localCells,true);
+   if(P::isRestart && P::tstep_min == P::tstep && dt == 0.0)
+   {
+      cout << "Using restart moments instead of recalculation" << endl;
+   }
+   else{
+      calculateMoments_R(mpiGrid,localCells,true);
+   }
+   
    
    phiprof::stop("semilag-trans");
 }

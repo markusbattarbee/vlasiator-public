@@ -46,7 +46,7 @@ void calculateSpatialTranslation(
  * This function is defined in cpu_moments.cpp file.*/
 void calculateCellMoments(
         spatial_cell::SpatialCell* cell,
-        const bool& computeSecond,const bool& doNotSkip=false);
+        const bool& computeSecond,const bool& doNotSkip=false, const bool& isRestart=false);
 
 /*!
   \brief Compute real-time 1st order accurate moments from the moments after propagation in velocity and spatial space

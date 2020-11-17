@@ -339,7 +339,7 @@ void initializeGrids(
    } else {
       phiprof::start("Init moments");
       for (size_t i=0; i<cells.size(); ++i) {
-         calculateCellMoments(mpiGrid[cells[i]], true);
+         calculateCellMoments(mpiGrid[cells[i]], true, false, true);
       }
       phiprof::stop("Init moments");
    }

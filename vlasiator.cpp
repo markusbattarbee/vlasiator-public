@@ -511,7 +511,9 @@ int main(int argn,char* args[]) {
    phiprof::start("compute-dt");
    // Run Vlasov solver once with zero dt to initialize
    // per-cell dt limits and moments.
+   cout << "compute-dt: calculateSpatialTranslation (zero dt)" << endl;
    calculateSpatialTranslation(mpiGrid,0.0);
+   cout << "end: calculateSpatialTranslation (zero dt)" << endl;
    calculateAcceleration(mpiGrid,0.0);
    /* 
    if (P::isRestart == false) {
