@@ -81,7 +81,7 @@ struct Parameters {
    
    static bool writeInitialState;           /*!< If true, initial state is written. This is useful for debugging as the restarts are always written out after propagation of 0.5dt in real space.*/
    static Real saveRestartWalltimeInterval; /*!< Interval in walltime seconds for restart data*/
-   static uint saveRestartDtInterval;       /*!< Interval in dts for restart data*/
+   static uint saveRestartTimestepInterval;       /*!< Interval in timesteps for restart data*/
    static uint exitAfterRestarts;           /*!< Exit after this many restarts*/
    static uint64_t vlsvBufferSize;          /*!< Buffer size in bytes passed to VLSV writer. */
    static int restartStripeFactor;          /*!< stripe_factor for restart writing*/
