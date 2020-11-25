@@ -247,6 +247,7 @@ void initializeGrids(
          // Communicate the perturbed B-fields and E-fileds read from the start file over to FSgrid
          feedPerBIntoFsGrid(mpiGrid, cells, perBGrid);
          perBGrid.updateGhostCells();
+         // E is needed only because both volumetric fields are calculated in 1 call
          feedEIntoFsGrid(mpiGrid, cells, EGrid);
          EGrid.updateGhostCells();
          // Calculate volumetric derivatives of B for curl
