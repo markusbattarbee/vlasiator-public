@@ -35,9 +35,6 @@
 #include "../../ioread.h"
 #include "../../memoryallocation.h"
 #include "../../fieldsolver/gridGlue.hpp"
-#ifdef PAPI_MEM
-#include "papi.h"
-#endif
 
 #include "ElVentana.h"
 // #include "vlsv_reader.h"

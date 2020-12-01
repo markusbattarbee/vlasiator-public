@@ -38,10 +38,6 @@ void calculateVolumeAveragedFields(
    FsGrid< std::array<Real, fsgrids::volfields::N_VOL>, 2> & volGrid,
    FsGrid< fsgrids::technical, 2> & technicalGrid
 ) {
-   // Update ghosts
-   dPerBGrid.updateGhostCells();
-   perBGrid.updateGhostCells();
-   EGrid.updateGhostCells();
 
    //const std::array<int, 3> gridDims = technicalGrid.getLocalSize();
    const int* gridDims = &technicalGrid.getLocalSize()[0];

@@ -322,12 +322,7 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       // half of deltaV, do rotation, then add the second half of deltaV?
       
       if (smallparticle) {	  
-	if (RKN) {
-	  total_transform=Translation<Real,3>(deltaV) * total_transform;
-	  //Eigen::Matrix<Real,3,1> deltaVpar(deltaV.dot(unit_B)*unit_B);
-	  //total_transform = Translation<Real,3>(deltaVpar) * total_transform;
-
-	} else {
+	if (!RKN) {
 	  // If using the Eulerian scheme, then the rotation algorithm is used
 	  // and only the B-parallel nudge from EJE is required:
 	  Eigen::Matrix<Real,3,1> EfromJe_parallel(EfromJe.dot(unit_B)*unit_B);
@@ -345,6 +340,11 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
 	}
       }
 
+      // add to transform matrix the small rotation around  pivot
+      // when added like this, and not using *= operator, the transformations
+      // are in the correct order
+      total_transform = Translation<Real,3>(-rotation_pivot) * total_transform;
+      if (smallparticle && RKN) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
       /* Evaluate electron pressure gradient term. This is treated as a simple
 	 nudge so we do half before and half after the rotation */
       if (Parameters::ohmGradPeTerm > 0) {
@@ -352,18 +352,15 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
 	 				      /getObjectWrapper().particleSpecies[popID].mass) *
 	 				     EgradPe * 0.5 * substeps_dt) * total_transform;
       }
-      // add to transform matrix the small rotation around  pivot
-      // when added like this, and not using *= operator, the transformations
-      // are in the correct order
-      total_transform = Translation<Real,3>(-rotation_pivot)*total_transform;
       total_transform = AngleAxis<Real>(substeps_radians,unit_B)*total_transform;
-      total_transform = Translation<Real,3>(rotation_pivot)*total_transform;
       /* Evaluate second half of electron pressure gradient term. */
       if (Parameters::ohmGradPeTerm > 0) {
 	 total_transform=Translation<Real,3>( (fabs(getObjectWrapper().particleSpecies[popID].charge)
 	 				      /getObjectWrapper().particleSpecies[popID].mass) *
 	 				     EgradPe * 0.5 * substeps_dt) * total_transform;
       }
+      if (smallparticle && RKN) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
+      total_transform = Translation<Real,3>(rotation_pivot) * total_transform;
 
    }
    //substepFile.close();
