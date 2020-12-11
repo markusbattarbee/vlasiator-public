@@ -245,7 +245,7 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       // when added like this, and not using *= operator, the transformations
       // are in the correct order
       total_transform = Translation<Real,3>(-rotation_pivot) * total_transform;
-      if (smallparticle && RKN) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
+      if (smallparticle) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
       /* Evaluate electron pressure gradient term. This is treated as a simple
 	 nudge so we do half before and half after the rotation */
       if (Parameters::ohmGradPeTerm > 0) {
@@ -260,7 +260,7 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
 	 				      /getObjectWrapper().particleSpecies[popID].mass) *
 	 				     EgradPe * 0.5 * substeps_dt) * total_transform;
       }
-      if (smallparticle && RKN) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
+      if (smallparticle) total_transform=Translation<Real,3>(deltaV * 0.5) * total_transform;
       total_transform = Translation<Real,3>(rotation_pivot) * total_transform;
 
    }
