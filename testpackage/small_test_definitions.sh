@@ -16,7 +16,7 @@ run_dir="run"
 test_dir="tests"
 
 # choose tests to run
-run_tests=( 1 2 3 4 5 6 7 8 9 10 11 12 13 14 18)
+run_tests=( 1 2 3 4 5 6 7 8 9 10 11 12 13 14 17 18)
 
 # acceleration test
 test_name[1]="acctest_2_maxw_500k_100k_20kms_10deg"
@@ -138,12 +138,10 @@ comparison_phiprof[17]="phiprof_0.txt"
 variable_names[17]="proton/vg_rho proton/vg_v proton/vg_v proton/vg_v fg_b fg_b fg_b fg_e fg_e fg_e"
 variable_components[17]="0 0 1 2 0 1 2 0 1 2"
 
-##Electron tests
-# Gyration test with electrons
-test_name[18]="acctest_6_electron"
-comparison_vlsv[18]="fullf.0000001.vlsv"
+# Magnetosphere 3D
+test_name[18]="Magnetosphere_3D_small"
+comparison_vlsv[18]="bulk.0000001.vlsv"
 comparison_phiprof[18]="phiprof_0.txt"
-variable_names[18]="electron/vg_rho electron/vg_v electron/vg_v electron/vg_v electron"
-variable_components[18]="0 0 1 2"
-single_cell[18]=1
+variable_names[18]="proton/vg_rho proton/vg_v proton/vg_v proton/vg_v fg_b fg_b fg_b fg_e fg_e fg_e"
+variable_components[18]="0 0 1 2 0 1 2 0 1 2"
 
