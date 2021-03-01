@@ -1196,7 +1196,16 @@ bool exec_readGrid(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"pressure_dt2",CellParams::P_11_DT2,3,mpiGrid); }
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"pressure_r",CellParams::P_11_R,3,mpiGrid); }
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"pressure_v",CellParams::P_11_V,3,mpiGrid); }
-   if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"LB_weight",CellParams::LBWEIGHTCOUNTER,1,mpiGrid); }
+   if(success) {
+      success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"LB_weightXYZ",CellParams::LBWEIGHTCOUNTERX,3,mpiGrid);
+      if (!success) {
+         success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"LB_weight",CellParams::LBWEIGHTCOUNTERX,1,mpiGrid);
+         for (size_t i=0; i<gridCells.size(); ++i) {
+            mpiGrid[gridCells[i]]->parameters[CellParams::LBWEIGHTCOUNTERY] = mpiGrid[gridCells[i]]->parameters[CellParams::LBWEIGHTCOUNTERX];
+            mpiGrid[gridCells[i]]->parameters[CellParams::LBWEIGHTCOUNTERZ] = mpiGrid[gridCells[i]]->parameters[CellParams::LBWEIGHTCOUNTERX];
+         }
+      }
+   }
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"max_v_dt",CellParams::MAXVDT,1,mpiGrid); }
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"max_r_dt",CellParams::MAXRDT,1,mpiGrid); }
    if(success) { success=readCellParamsVariable(file,fileCells,localCellStartOffset,localCells,"max_fields_dt",CellParams::MAXFDT,1,mpiGrid); }

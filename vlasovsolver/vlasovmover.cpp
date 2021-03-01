@@ -71,7 +71,9 @@ void calculateSpatialTranslation(
         const vector<CellID>& remoteTargetCellsx,
         const vector<CellID>& remoteTargetCellsy,
         const vector<CellID>& remoteTargetCellsz,
-        vector<uint>& nPencils,
+        vector<uint>& nPencilsX,
+        vector<uint>& nPencilsY,
+        vector<uint>& nPencilsZ,
         creal dt,
         const uint popID,
         Real &time
@@ -111,7 +113,7 @@ void calculateSpatialTranslation(
       if(P::amrMaxSpatialRefLevel == 0) {
          trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsz, 2, dt,popID); // map along z//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsz, nPencils, 2, dt,popID); // map along z//
+         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsz, nPencilsZ, 2, dt,popID); // map along z//
       }
       phiprof::stop("compute-mapping-z");
       time += MPI_Wtime() - t1;
@@ -136,17 +138,15 @@ void calculateSpatialTranslation(
 
    if (Parameters::prepareForRebalance == true) {
    for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-      if (nPencils[c]==1) {
+      if (nPencilsZ[c]==1) {
          one++;
-      } else if (nPencils[c]==4) {
+      } else if (nPencilsZ[c]==4) {
          four++;
       } else {
          other++;
       }
-      nPencils[c]=0;
    }
-   nPencils[local_propagated_cells.size()]=0;
-   std::cout<<"shortpencils Z "<<P::transShortPencils<<" nPencils-total="<<nPencils[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
+   std::cout<<"shortpencils Z "<<P::transShortPencils<<" nPencils-total="<<nPencilsZ[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
    one=0;
    four=0;
    other=0;
@@ -177,7 +177,7 @@ void calculateSpatialTranslation(
       if(P::amrMaxSpatialRefLevel == 0) {
          trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsx, 0,dt,popID); // map along x//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsx, nPencils, 0,dt,popID); // map along x//
+         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsx, nPencilsX, 0,dt,popID); // map along x//
       }
       phiprof::stop("compute-mapping-x");
       time += MPI_Wtime() - t1;
@@ -202,17 +202,15 @@ void calculateSpatialTranslation(
 
    if (Parameters::prepareForRebalance == true) {
    for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-      if (nPencils[c]==1) {
+      if (nPencilsX[c]==1) {
          one++;
-      } else if (nPencils[c]==4) {
+      } else if (nPencilsX[c]==4) {
          four++;
       } else {
          other++;
       }
-      nPencils[c]=0;
    }
-   nPencils[local_propagated_cells.size()]=0;
-   std::cout<<"shortpencils X "<<P::transShortPencils<<" nPencils-total="<<nPencils[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
+   std::cout<<"shortpencils X "<<P::transShortPencils<<" nPencils-total="<<nPencilsX[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
    one=0;
    four=0;
    other=0;
@@ -243,7 +241,7 @@ void calculateSpatialTranslation(
       if(P::amrMaxSpatialRefLevel == 0) {
          trans_map_1d(mpiGrid,local_propagated_cells, remoteTargetCellsy, 1,dt,popID); // map along y//
       } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//      
+         trans_map_1d_amr(mpiGrid,local_propagated_cells, remoteTargetCellsy, nPencilsY, 1,dt,popID); // map along y//      
       }
       phiprof::stop("compute-mapping-y");
       time += MPI_Wtime() - t1;
@@ -268,15 +266,15 @@ void calculateSpatialTranslation(
 
    if (Parameters::prepareForRebalance == true) {
    for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-      if (nPencils[c]==1) {
+      if (nPencilsY[c]==1) {
          one++;
-      } else if (nPencils[c]==4) {
+      } else if (nPencilsY[c]==4) {
          four++;
       } else {
          other++;
       }
    }
-   std::cout<<"shortpencils Y "<<P::transShortPencils<<" nPencils-total="<<nPencils[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
+   std::cout<<"shortpencils Y "<<P::transShortPencils<<" nPencils-total="<<nPencilsY[local_propagated_cells.size()]<<" one="<<one<<" four=="<<four<<" other="<<other<<std::endl;
    }
    // bt=phiprof::initializeTimer("barrier-trans-post-trans","Barriers","MPI");
    // phiprof::start(bt);
@@ -312,7 +310,9 @@ void calculateSpatialTranslation(
    vector<CellID> remoteTargetCellsz;
    vector<CellID> local_propagated_cells;
    vector<CellID> local_target_cells;
-   vector<uint> nPencils;
+   vector<uint> nPencilsX;
+   vector<uint> nPencilsY;
+   vector<uint> nPencilsZ;
    Real time=0.0;
    
    // If dt=0 we are either initializing or distribution functions are not translated. 
@@ -342,7 +342,9 @@ void calculateSpatialTranslation(
    if (P::prepareForRebalance == true && P::amrMaxSpatialRefLevel != 0) {
       // One more element to count the sums
       for (size_t c=0; c<local_propagated_cells.size()+1; c++) {
-         nPencils.push_back(0);
+         nPencilsX.push_back(0);
+         nPencilsY.push_back(0);
+         nPencilsZ.push_back(0);
       }
    }
    phiprof::stop("compute_cell_lists");
@@ -361,7 +363,9 @@ void calculateSpatialTranslation(
          remoteTargetCellsx,
          remoteTargetCellsy,
          remoteTargetCellsz,
-         nPencils,
+         nPencilsX,
+         nPencilsY,
+         nPencilsZ,
          dt,
          popID,
          time
@@ -375,7 +379,9 @@ void calculateSpatialTranslation(
          for (size_t c=0; c<localCells.size(); ++c) {
 //            mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += time / localCells.size();
             for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
-               mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += mpiGrid[localCells[c]]->get_number_of_velocity_blocks(popID);
+               mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTERX] += mpiGrid[localCells[c]]->get_number_of_velocity_blocks(popID);
+               mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTERY] += mpiGrid[localCells[c]]->get_number_of_velocity_blocks(popID);
+               mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTERZ] += mpiGrid[localCells[c]]->get_number_of_velocity_blocks(popID);
             }
          }
       } else {
@@ -385,7 +391,9 @@ void calculateSpatialTranslation(
             for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
                counter += mpiGrid[local_propagated_cells[c]]->get_number_of_velocity_blocks(popID);
             }
-            mpiGrid[local_propagated_cells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += nPencils[c] * counter;
+            mpiGrid[local_propagated_cells[c]]->parameters[CellParams::LBWEIGHTCOUNTERX] += nPencilsX[c] * counter;
+            mpiGrid[local_propagated_cells[c]]->parameters[CellParams::LBWEIGHTCOUNTERY] += nPencilsY[c] * counter;
+            mpiGrid[local_propagated_cells[c]]->parameters[CellParams::LBWEIGHTCOUNTERZ] += nPencilsZ[c] * counter;
 //            mpiGrid[localCells[c]]->parameters[CellParams::LBWEIGHTCOUNTER] += time / localCells.size();
          }
          //std::cout<<"nPencils-total="<<nPencils[local_propagated_cells.size()]<<std::endl;

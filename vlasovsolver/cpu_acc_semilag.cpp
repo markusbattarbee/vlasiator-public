@@ -158,5 +158,6 @@ void cpu_accelerate_cell(SpatialCell* spatial_cell,
 
    if (Parameters::prepareForRebalance == true) {
 //       spatial_cell->parameters[CellParams::LBWEIGHTCOUNTER] += (MPI_Wtime() - t1);
+      // superceded by three translation-controlled Cartesian weights
    }
 }
