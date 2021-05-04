@@ -117,12 +117,7 @@ void calculateSpatialTranslation(
       phiprof::stop("compute-mapping-z");
    }
 
-//   bt=phiprof::initializeTimer("barrier-trans-pre-x","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
-   
-   // ------------- SLICE - map dist function in X --------------- //
+    // ------------- SLICE - map dist function in X --------------- //
    if(P::xcells_ini > 1){
       phiprof::start("compute-mapping-x");
       if(P::amrMaxSpatialRefLevel == 0) {
@@ -132,11 +127,6 @@ void calculateSpatialTranslation(
       }
       phiprof::stop("compute-mapping-x");
    }
-
-//   bt=phiprof::initializeTimer("barrier-trans-pre-y","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
 
    // ------------- SLICE - map dist function in Y --------------- //
    if(P::ycells_ini > 1) {
@@ -149,10 +139,6 @@ void calculateSpatialTranslation(
       phiprof::stop("compute-mapping-y");
    }
 
-//   bt=phiprof::initializeTimer("barrier-trans-post-trans","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
 
    // MPI_Barrier(MPI_COMM_WORLD);
    // bailout(true, "", __FILE__, __LINE__);
