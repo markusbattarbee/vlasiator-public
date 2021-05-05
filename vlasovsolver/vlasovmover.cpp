@@ -94,6 +94,7 @@ void calculateSpatialTranslation(
     
     int myRank;
     MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+<<<<<<< HEAD
 
     /** Now restructured: Update all ghost cells including corners,
 	then perform piecewise translation for all local cells
@@ -164,7 +165,6 @@ void calculateSpatialTranslation(
     std::cerr<<"Z"<<std::endl;
     // ------------- SLICE - map dist function in Z --------------- //
     if(P::zcells_ini > 1){
-
       t1 = MPI_Wtime();
       phiprof::start("compute-mapping-z");
       if(P::amrMaxSpatialRefLevel == 0) {
@@ -175,11 +175,6 @@ void calculateSpatialTranslation(
       phiprof::stop("compute-mapping-z");
       time += MPI_Wtime() - t1;
    }
-
-//   bt=phiprof::initializeTimer("barrier-trans-pre-x","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
    
    // ------------- SLICE - map dist function in X --------------- //
     std::cerr<<"X"<<std::endl;
@@ -195,11 +190,6 @@ void calculateSpatialTranslation(
       time += MPI_Wtime() - t1;
    }
 
-//   bt=phiprof::initializeTimer("barrier-trans-pre-y","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
-
    // ------------- SLICE - map dist function in Y --------------- //
     std::cerr<<"Y"<<std::endl;
    if(P::ycells_ini > 1) {
@@ -213,11 +203,6 @@ void calculateSpatialTranslation(
       phiprof::stop("compute-mapping-y");
       time += MPI_Wtime() - t1;
    }
-
-//   bt=phiprof::initializeTimer("barrier-trans-post-trans","Barriers","MPI");
-//   phiprof::start(bt);
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   phiprof::stop(bt);
 
    // MPI_Barrier(MPI_COMM_WORLD);
    // bailout(true, "", __FILE__, __LINE__);
