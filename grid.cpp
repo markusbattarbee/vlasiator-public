@@ -600,7 +600,11 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    }
    
    phiprof::stop("Init solvers");
-   
+
+   // Update face neighbor information for remote cells on boundary
+   const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
+   mpiGrid.update_remote_cell_information(remote_cells);
+
    // Record ranks of face neighbors
    if(P::amrMaxSpatialRefLevel > 0) {
       phiprof::start("set face neighbor ranks");

@@ -219,6 +219,12 @@ void computeSpatialSourceCellsForPencil(const dccrg::Dccrg<SpatialCell,dccrg::Ca
       if(nbrPair.second[dimension] < 0) {
          // gather positive distance values
          distances.insert(-nbrPair.second[dimension]);
+	 // test: Look for neighbours of remote cells
+	 /*if (!mpiGrid.is_local(nbrPair.first)) {
+	   const auto frontNeighbors = mpiGrid.get_face_neighbors_of(nbrPair.first); // gives 6,9,12, or 15 face neighbors 
+	   const auto* alNeighbors = mpiGrid.get_neighbors_of(nbrPair.first, VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID); // gives 2 or 5 neighbors
+	   std::cerr<<"Remote cell "<<nbrPair.first<<" has "<<frontNeighbors.size()<<" face neighbors and "<<alNeighbors->size()<<" total neighbors!"<<std::endl;
+	   }*/
       }
    }
 
