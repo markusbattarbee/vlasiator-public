@@ -572,7 +572,11 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
 
    // flag transfers if AMR
    phiprof::start("compute_amr_transfer_flags");
-   flagSpatialCellsForAmrCommunication(mpiGrid,cells);
+   if (P::vlasovSolverLocalTranslate) {
+      prepareLocalTranslationCellLists(mpiGrid,cells);
+   } else {
+      flagSpatialCellsForAmrCommunication(mpiGrid,cells);
+   }
    phiprof::stop("compute_amr_transfer_flags");
 
    // Communicate all spatial data for FULL neighborhood, which
@@ -601,8 +605,8 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    
    phiprof::stop("Init solvers");
 
-   // Update face neighbor information for remote cells on boundary
-   const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
+   // Update (face and other) neighbor information for remote cells on boundary
+   const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(FULL_NEIGHBORHOOD_ID);
    mpiGrid.update_remote_cell_information(remote_cells);
 
    // Record ranks of face neighbors
@@ -784,7 +788,8 @@ void report_grid_memory_consumption(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Ge
  */
 void deallocateRemoteCellBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid) {
    const std::vector<uint64_t> incoming_cells
-      = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
+      //= mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
+      = mpiGrid.get_remote_cells_on_process_boundary(FULL_NEIGHBORHOOD_ID);
    for(unsigned int i=0;i<incoming_cells.size();i++){
       uint64_t cell_id=incoming_cells[i];
       SpatialCell* cell = mpiGrid[cell_id];
@@ -976,27 +981,43 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
 
    neighborhood.clear();
-   for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
-      for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
-         for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
-            if (x == 0 && y == 0 && z == 0) {
-               continue;
+   if (P::vlasovSolverLocalTranslate) {
+      // New method of doing all three cartesian directions with local data
+      /* Including extra reach if required by AMR */
+      for (int z = -full_neighborhood_size-addStencilDepth; z <= full_neighborhood_size+addStencilDepth; z++) {
+         for (int y = -full_neighborhood_size-addStencilDepth; y <= full_neighborhood_size+addStencilDepth; y++) {
+            for (int x = -full_neighborhood_size-addStencilDepth; x <= full_neighborhood_size+addStencilDepth; x++) {
+               if (x == 0 && y == 0 && z == 0) {
+                  continue;
+               }
+               neigh_t offsets = {{x, y, z}};
+               neighborhood.push_back(offsets);
             }
-            neigh_t offsets = {{x, y, z}};
-            neighborhood.push_back(offsets);
          }
       }
-   }
-   /* Add extra face neighbors if required by AMR */
-   for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
-      neighborhood.push_back({{ d, 0, 0}});
-      neighborhood.push_back({{-d, 0, 0}});
-      neighborhood.push_back({{0, d, 0}});
-      neighborhood.push_back({{0,-d, 0}});
-      neighborhood.push_back({{0, 0, d}});
-      neighborhood.push_back({{0, 0,-d}});     
-   }
-   /*all possible communication pairs*/
+   } else {
+      // Classic per-cartesian-direction approach
+      for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
+         for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
+            for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
+               if (x == 0 && y == 0 && z == 0) {
+                  continue;
+               }
+               neigh_t offsets = {{x, y, z}};
+               neighborhood.push_back(offsets);
+            }
+         }
+      }
+      /* Add extra face neighbors if required by AMR */
+      for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
+         neighborhood.push_back({{ d, 0, 0}});
+         neighborhood.push_back({{-d, 0, 0}});
+         neighborhood.push_back({{0, d, 0}});
+         neighborhood.push_back({{0,-d, 0}});
+         neighborhood.push_back({{0, 0, d}});
+         neighborhood.push_back({{0, 0,-d}});     
+      }
+   }   /*all possible communication pairs*/
    mpiGrid.add_neighborhood(FULL_NEIGHBORHOOD_ID, neighborhood);
    
    /*stencils for semilagrangian propagators*/ 

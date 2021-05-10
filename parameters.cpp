@@ -64,6 +64,7 @@ Real P::t_max = LARGE_REAL;
 Real P::dt = NAN;
 Real P::vlasovSolverMaxCFL = NAN;
 Real P::vlasovSolverMinCFL = NAN;
+bool P::vlasovSolverLocalTranslate = false;
 Real P::fieldSolverMaxCFL = NAN;
 Real P::fieldSolverMinCFL = NAN;
 uint P::fieldSolverSubcycles = 1;
@@ -226,6 +227,7 @@ bool Parameters::addParameters(){
    Readparameters::add("vlasovsolver.maxSlAccelerationSubcycles","Maximum number of subcycles for acceleration",1);
    Readparameters::add("vlasovsolver.maxCFL","The maximum CFL limit for vlasov propagation in ordinary space. Used to set timestep if dynamic_timestep is true.",0.99);
    Readparameters::add("vlasovsolver.minCFL","The minimum CFL limit for vlasov propagation in ordinary space. Used to set timestep if dynamic_timestep is true.",0.8);
+   Readparameters::add("vlasovsolver.LocalTranslate","Boolean for activating all-local translation",false);
 
    // Load balancing parameters
    Readparameters::add("loadBalance.algorithm", "Load balancing algorithm to be used", string("RCB"));
@@ -604,6 +606,7 @@ bool Parameters::getParameters(){
    Readparameters::get("vlasovsolver.maxSlAccelerationSubcycles",P::maxSlAccelerationSubcycles);
    Readparameters::get("vlasovsolver.maxCFL",P::vlasovSolverMaxCFL);
    Readparameters::get("vlasovsolver.minCFL",P::vlasovSolverMinCFL);
+   Readparameters::get("vlasovsolver.LocalTranslate",P::vlasovSolverLocalTranslate);
 
    
    // Get load balance parameters
