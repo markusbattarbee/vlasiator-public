@@ -78,7 +78,6 @@ void calculateSpatialTranslation(
     int trans_timer;
     bool AMRtranslationActive = false;
     if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
-
     double t1;
     
     int myRank;
@@ -266,57 +265,59 @@ void calculateSpatialLocalTranslation(
 
     int trans_timer;
     bool AMRtranslationActive = false;
-    if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
+    //if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
 
     // int myRank;
     // MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
     double t1;
-   
+
     trans_timer=phiprof::initializeTimer("transfer-stencil-data-all","MPI");
     phiprof::start(trans_timer);
+    updateRemoteVelocityBlockLists(mpiGrid,popID);
+    updateRemoteVelocityBlockLists(mpiGrid,popID,FULL_NEIGHBORHOOD_ID);
     SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA,false,AMRtranslationActive);
     mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
     phiprof::stop(trans_timer);
 
-      // ------------- SLICE - map dist function in Z --------------- //
-   if(P::zcells_ini > 1){
-      t1 = MPI_Wtime();
-      phiprof::start("compute-mapping-z");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, 2, dt,popID); // map along z//
-      } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, nPencils, 2, dt,popID); // map along z//
+    // ------------- SLICE - map dist function in Z --------------- //
+    if(P::zcells_ini > 1){
+       t1 = MPI_Wtime();
+       phiprof::start("compute-mapping-z");
+       if(P::amrMaxSpatialRefLevel == 0) {
+          trans_map_1d(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, 2, dt,popID); // map along z//
+       } else {
+          trans_map_1d_amr(mpiGrid,local_propagated_cells_z, remoteTargetCellsz, nPencils, 2, dt,popID); // map along z//
+       }
+       phiprof::stop("compute-mapping-z");
+       time += MPI_Wtime() - t1;
+    }
+
+    // ------------- SLICE - map dist function in X --------------- //
+    if(P::xcells_ini > 1){
+       t1 = MPI_Wtime();
+       phiprof::start("compute-mapping-x");
+       if(P::amrMaxSpatialRefLevel == 0) {
+          trans_map_1d(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, 0,dt,popID); // map along x//
+       } else {
+          trans_map_1d_amr(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, nPencils, 0,dt,popID); // map along x//
       }
-      phiprof::stop("compute-mapping-z");
-      time += MPI_Wtime() - t1;
+       phiprof::stop("compute-mapping-x");
+       time += MPI_Wtime() - t1;
+    }
+
+    // ------------- SLICE - map dist function in Y --------------- //
+    if(P::ycells_ini > 1) {
+       t1 = MPI_Wtime();
+       phiprof::start("compute-mapping-y");
+       if(P::amrMaxSpatialRefLevel == 0) {
+          trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, 1,dt,popID); // map along y//
+       } else {
+          trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//      
+       }
+       phiprof::stop("compute-mapping-y");
+       time += MPI_Wtime() - t1;
    }
 
-   // ------------- SLICE - map dist function in X --------------- //
-   if(P::xcells_ini > 1){
-      t1 = MPI_Wtime();
-      phiprof::start("compute-mapping-x");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, 0,dt,popID); // map along x//
-      } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_x, remoteTargetCellsx, nPencils, 0,dt,popID); // map along x//
-      }
-      phiprof::stop("compute-mapping-x");
-      time += MPI_Wtime() - t1;
-   }
-
-   // ------------- SLICE - map dist function in Y --------------- //
-   if(P::ycells_ini > 1) {
-      t1 = MPI_Wtime();
-      phiprof::start("compute-mapping-y");
-      if(P::amrMaxSpatialRefLevel == 0) {
-         trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, 1,dt,popID); // map along y//
-      } else {
-         trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//      
-      }
-      phiprof::stop("compute-mapping-y");
-      time += MPI_Wtime() - t1;
-   }
-   
 }
 
 /*!
@@ -348,6 +349,7 @@ void calculateSpatialTranslation(
    vector<CellID> local_propagated_cells_z;
    vector<uint> nPencils;
    Real time=0.0;
+
    
    // If dt=0 we are either initializing or distribution functions are not translated. 
    // In both cases go to the end of this function and calculate the moments.
@@ -356,6 +358,7 @@ void calculateSpatialTranslation(
    phiprof::start("compute_cell_lists");
    if (P::vlasovSolverLocalTranslate) {
       // Cell lists are pre-computed at LB
+      // declared in cpu_trans_map_amr.hpp
       remoteTargetCellsx = LocalTranslate_sources_x;
       remoteTargetCellsy = LocalTranslate_sources_y;
       remoteTargetCellsz = LocalTranslate_sources_z;

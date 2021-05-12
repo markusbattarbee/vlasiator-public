@@ -212,13 +212,14 @@ static std::array<setOfPencils,3> DimensionPencils;
 void flagSpatialCellsForAmrCommunication(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                          const std::vector<CellID>& localPropagatedCells);
 
-// vectors used for storing cells participating in all-local translation
-std::vector<CellID> LocalTranslate_sources_x;
-std::vector<CellID> LocalTranslate_sources_y;
-std::vector<CellID> LocalTranslate_sources_z;
-std::vector<CellID> LocalTranslate_active_x;
-std::vector<CellID> LocalTranslate_active_y;
-std::vector<CellID> LocalTranslate_active_z;
+// declare vectors used for storing cells participating in all-local translation
+// defined in cpu_trans_map_amr.cpp
+extern std::vector<CellID> LocalTranslate_sources_x;
+extern std::vector<CellID> LocalTranslate_sources_y;
+extern std::vector<CellID> LocalTranslate_sources_z;
+extern std::vector<CellID> LocalTranslate_active_x;
+extern std::vector<CellID> LocalTranslate_active_y;
+extern std::vector<CellID> LocalTranslate_active_z;
 
 void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                       const std::vector<CellID>& localPropagatedCells);

@@ -570,8 +570,13 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    #pragma omp parallel for
    for (uint i=0; i<cells.size(); ++i) mpiGrid[cells[i]]->set_mpi_transfer_enabled(true);
 
+   // Update (face and other) neighbor information for remote cells on boundary
+   const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(FULL_NEIGHBORHOOD_ID);
+   mpiGrid.update_remote_cell_information(remote_cells);
+
    // flag transfers if AMR
    phiprof::start("compute_amr_transfer_flags");
+   std::cerr<<"P::vlasovSolverLocalTranslate "<<P::vlasovSolverLocalTranslate<<std::endl;
    if (P::vlasovSolverLocalTranslate) {
       prepareLocalTranslationCellLists(mpiGrid,cells);
    } else {
@@ -604,10 +609,6 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    }
    
    phiprof::stop("Init solvers");
-
-   // Update (face and other) neighbor information for remote cells on boundary
-   const vector<CellID> remote_cells = mpiGrid.get_remote_cells_on_process_boundary(FULL_NEIGHBORHOOD_ID);
-   mpiGrid.update_remote_cell_information(remote_cells);
 
    // Record ranks of face neighbors
    if(P::amrMaxSpatialRefLevel > 0) {
