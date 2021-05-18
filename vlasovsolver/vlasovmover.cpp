@@ -273,11 +273,13 @@ void calculateSpatialLocalTranslation(
 
     trans_timer=phiprof::initializeTimer("transfer-stencil-data-all","MPI");
     phiprof::start(trans_timer);
-    updateRemoteVelocityBlockLists(mpiGrid,popID);
-    updateRemoteVelocityBlockLists(mpiGrid,popID,FULL_NEIGHBORHOOD_ID);
+    updateRemoteVelocityBlockLists(mpiGrid,popID,VLASOV_SOLVER_NEIGHBORHOOD_ID);
     SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA,false,AMRtranslationActive);
-    mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_NEIGHBORHOOD_ID);
+    SpatialCell::set_mpi_transfer_type(Transfer::ALL_DATA,false,AMRtranslationActive);
+    mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_NEIGHBORHOOD_ID);
     phiprof::stop(trans_timer);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // ------------- SLICE - map dist function in Z --------------- //
     if(P::zcells_ini > 1){
@@ -380,7 +382,7 @@ void calculateSpatialTranslation(
    }
    if (P::prepareForRebalance == true && P::amrMaxSpatialRefLevel != 0) {
       // One more element to count the sums
-      for (size_t c=0; c<local_propagated_cells.size()+1; c++) {
+      for (size_t c=0; c<localCells.size()+1; c++) {
          nPencils.push_back(0);
       }
    }

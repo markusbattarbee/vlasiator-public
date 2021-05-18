@@ -607,7 +607,9 @@ bool Parameters::getParameters(){
    Readparameters::get("vlasovsolver.maxCFL",P::vlasovSolverMaxCFL);
    Readparameters::get("vlasovsolver.minCFL",P::vlasovSolverMinCFL);
    Readparameters::get("vlasovsolver.LocalTranslate",P::vlasovSolverLocalTranslate);
-
+   if ((myRank == MASTER_RANK)&&(P::vlasovSolverLocalTranslate==true)) {
+      printf("Performing all spatial translation locally using ghost cell information\n");
+   }
    
    // Get load balance parameters
    Readparameters::get("loadBalance.algorithm", P::loadBalanceAlgorithm);

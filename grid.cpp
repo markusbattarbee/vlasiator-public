@@ -132,6 +132,10 @@ void initializeGrids(
       }
    }
    globalflags::AMRstencilWidth = neighborhood_size;
+   /* Increase neighborhood so first remote cells can also be translated if 
+      P::vlasovSolverLocalTranslate is active. Increases the neighborhood in either case
+      in order to allow comparison between versions. */
+   neighborhood_size++;
 
    const std::array<uint64_t, 3> grid_length = {{P::xcells_ini, P::ycells_ini, P::zcells_ini}};
    dccrg::Cartesian_Geometry::Parameters geom_params;
@@ -325,7 +329,7 @@ void initializeGrids(
 
    phiprof::initializeTimer("Fetch Neighbour data","MPI");
    phiprof::start("Fetch Neighbour data");
-   // update complete cell spatial data for full stencil (
+   // update complete cell spatial data for full stencil
    SpatialCell::set_mpi_transfer_type(Transfer::ALL_SPATIAL_DATA);
    mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
    
@@ -575,9 +579,11 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    mpiGrid.update_remote_cell_information(remote_cells);
 
    // flag transfers if AMR
+   //MPI_Barrier(MPI_COMM_WORLD);
    phiprof::start("compute_amr_transfer_flags");
-   std::cerr<<"P::vlasovSolverLocalTranslate "<<P::vlasovSolverLocalTranslate<<std::endl;
    if (P::vlasovSolverLocalTranslate) {
+      SpatialCell::set_mpi_transfer_type(Transfer::CELL_SYSBOUNDARYFLAG);
+      mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
       prepareLocalTranslationCellLists(mpiGrid,cells);
    } else {
       flagSpatialCellsForAmrCommunication(mpiGrid,cells);
@@ -591,8 +597,13 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
 
    phiprof::start("update block lists");
    //new partition, re/initialize blocklists of remote cells.
-   for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID)
-      updateRemoteVelocityBlockLists(mpiGrid,popID);
+   for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
+      if (P::vlasovSolverLocalTranslate) {
+         updateRemoteVelocityBlockLists(mpiGrid,popID,FULL_NEIGHBORHOOD_ID);
+      } else {
+         updateRemoteVelocityBlockLists(mpiGrid,popID);
+      }
+   }
    phiprof::stop("update block lists");
 
    phiprof::start("update sysboundaries");
@@ -607,7 +618,6 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
          exit(1);
       }
    }
-   
    phiprof::stop("Init solvers");
 
    // Record ranks of face neighbors
@@ -789,8 +799,7 @@ void report_grid_memory_consumption(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Ge
  */
 void deallocateRemoteCellBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid) {
    const std::vector<uint64_t> incoming_cells
-      //= mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
-      = mpiGrid.get_remote_cells_on_process_boundary(FULL_NEIGHBORHOOD_ID);
+      = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_NEIGHBORHOOD_ID);
    for(unsigned int i=0;i<incoming_cells.size();i++){
       uint64_t cell_id=incoming_cells[i];
       SpatialCell* cell = mpiGrid[cell_id];
@@ -877,17 +886,35 @@ EXTENDED_SYSBOUNDARIES (second nearest neighbor, also in diagonal)
 -----------  
 
 VLASOV
+Old cartesian translation (A = AMR extension):
 -----------  
+    A
     x
     x
-  xxoxx
+ AxxoxxA
     x
     x
------------    
+    A
+-----------
+All-local translation (P = local propagation, A = AMR extension)
+Asymmetric due to translation order z->x->y
+-----------
+    AAA
+    xxx
+    xxx
+    PPP
+ AxxPoPxxA
+    PPP
+    xxx
+    xxx
+    AAA
+-----------
 
 VLASOV_{XYZ}
 -----------
- xxoxxx
+ AxxoxxA
+----or-------
+ AxxPoPxxA
 -----------
 
 VLASOV_TARGET_{XYZ}
@@ -907,7 +934,7 @@ DIST_FUNC  (Includes all cells which should know about each others blocks and ha
 -----------    
 
    
-FULL (Includes all possible communication, possible AMR extension)
+FULL (Includes all possible communication)
 -----------
     A
   xxxxx
@@ -916,6 +943,16 @@ FULL (Includes all possible communication, possible AMR extension)
   xxxxx
   xxxxx
     A
+-----or------
+    AAA
+    xxx
+   xxxxx
+   xPPPx
+ AxxPoPxxA
+   xPPPx
+   xxxxx
+    xxx
+    AAA
 -----------
 
 SHIFT_M_X    ox
@@ -979,56 +1016,48 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
             std::cerr<<"Warning: unrecognized VLASOV_STENCIL_WIDTH in grid.cpp"<<std::endl;
       }
    }
-   int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
 
+   /*stencils for semilagrangian propagators*/
    neighborhood.clear();
    if (P::vlasovSolverLocalTranslate) {
-      // New method of doing all three cartesian directions with local data
-      /* Including extra reach if required by AMR */
-      for (int z = -full_neighborhood_size-addStencilDepth; z <= full_neighborhood_size+addStencilDepth; z++) {
-         for (int y = -full_neighborhood_size-addStencilDepth; y <= full_neighborhood_size+addStencilDepth; y++) {
-            for (int x = -full_neighborhood_size-addStencilDepth; x <= full_neighborhood_size+addStencilDepth; x++) {
-               if (x == 0 && y == 0 && z == 0) {
-                  continue;
+      /* New method of doing all three cartesian directions with local data
+         Including extra reach if required by AMR
+         Asymmetric due to translation order z->x->y
+      */
+      for (int y = -1; y <= 1; y++) {
+         for (int x = -1; x <= 1; x++) {
+            for (int z = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; z <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; z++) {
+               if (x != 0 && y != 0 && z != 0) {
+                  neigh_t offsets = {{x, y, z}};
+                  neighborhood.push_back(offsets);
                }
-               neigh_t offsets = {{x, y, z}};
+            }
+         }
+         for (int x = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; x <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; x++) {
+            if (x != 0 && y != 0) {
+               neigh_t offsets = {{x, y, 0}};
                neighborhood.push_back(offsets);
             }
          }
       }
+      for (int y = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; y <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; y++) {
+         if (y != 0) {
+            neigh_t offsets = {{0, y, 0}};
+            neighborhood.push_back(offsets);
+         }
+      }
+      // Remove duplicates
+      std::sort(neighborhood.begin(),neighborhood.end());
+      neighborhood.erase(unique(neighborhood.begin(), neighborhood.end()), neighborhood.end());
    } else {
       // Classic per-cartesian-direction approach
-      for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
-         for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
-            for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
-               if (x == 0 && y == 0 && z == 0) {
-                  continue;
-               }
-               neigh_t offsets = {{x, y, z}};
-               neighborhood.push_back(offsets);
-            }
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{d, 0, 0}});
+            neighborhood.push_back({{0, d, 0}});
+            neighborhood.push_back({{0, 0, d}});
          }
       }
-      /* Add extra face neighbors if required by AMR */
-      for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
-         neighborhood.push_back({{ d, 0, 0}});
-         neighborhood.push_back({{-d, 0, 0}});
-         neighborhood.push_back({{0, d, 0}});
-         neighborhood.push_back({{0,-d, 0}});
-         neighborhood.push_back({{0, 0, d}});
-         neighborhood.push_back({{0, 0,-d}});     
-      }
-   }   /*all possible communication pairs*/
-   mpiGrid.add_neighborhood(FULL_NEIGHBORHOOD_ID, neighborhood);
-   
-   /*stencils for semilagrangian propagators*/ 
-   neighborhood.clear();
-   for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
-     if (d != 0) {
-        neighborhood.push_back({{d, 0, 0}});
-        neighborhood.push_back({{0, d, 0}});
-        neighborhood.push_back({{0, 0, d}});
-     }
    }
    mpiGrid.add_neighborhood(VLASOV_SOLVER_NEIGHBORHOOD_ID, neighborhood);
 
@@ -1036,41 +1065,80 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    for (int z = -1; z <= 1; z++) {
       for (int y = -1; y <= 1; y++) {
          for (int x = -1; x <= 1; x++) {
-            //do not add cells already in neighborhood (vlasov solver)
-            if (x == 0 && y == 0 ) continue;
-            if (x == 0 && z == 0 ) continue;
-            if (y == 0 && z == 0 ) continue;
-            
+            if (x == 0 && y == 0 && z == 0) continue;
             neigh_t offsets = {{x, y, z}};
             neighborhood.push_back(offsets);
          }
       }
    }
+   // Erase duplicates
+   std::sort(neighborhood.begin(),neighborhood.end());
+   neighborhood.erase(unique(neighborhood.begin(), neighborhood.end()), neighborhood.end());
    mpiGrid.add_neighborhood(DIST_FUNC_NEIGHBORHOOD_ID, neighborhood);
+
+   /* Full communication: add extended sysboundaries to Vlasov neighborhood*/
+   int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
+   for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
+      for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
+         for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
+            if (x == 0 && y == 0 && z == 0) {
+               continue;
+            }
+            neigh_t offsets = {{x, y, z}};
+            neighborhood.push_back(offsets);
+         }
+      }
+   }
+   std::sort(neighborhood.begin(),neighborhood.end());
+   neighborhood.erase(unique(neighborhood.begin(), neighborhood.end()), neighborhood.end());
+   /* all possible communication pairs */
+   mpiGrid.add_neighborhood(FULL_NEIGHBORHOOD_ID, neighborhood);
    
    neighborhood.clear();
-   for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
-     if (d != 0) {
-        neighborhood.push_back({{d, 0, 0}});
-     }
+   if (P::vlasovSolverLocalTranslate) {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; d <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{d, 0, 0}});
+         }
+      }
+   } else {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{d, 0, 0}});
+         }
+      }
    }
    mpiGrid.add_neighborhood(VLASOV_SOLVER_X_NEIGHBORHOOD_ID, neighborhood);
 
-
    neighborhood.clear();
-   for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
-     if (d != 0) {
-        neighborhood.push_back({{0, d, 0}});
-     }
+   if (P::vlasovSolverLocalTranslate) {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; d <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{0, d, 0}});
+         }
+      }
+   } else {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{0, d, 0}});
+         }
+      }
    }
    mpiGrid.add_neighborhood(VLASOV_SOLVER_Y_NEIGHBORHOOD_ID, neighborhood);
 
-   
    neighborhood.clear();
-   for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
-     if (d != 0) {
-        neighborhood.push_back({{0, 0, d}});
-     }
+   if (P::vlasovSolverLocalTranslate) {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth-1; d <= VLASOV_STENCIL_WIDTH+addStencilDepth+1; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{0, 0, d}});
+         }
+      }
+   } else {
+      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
+         if (d != 0) {
+            neighborhood.push_back({{0, 0, d}});
+         }
+      }
    }
    mpiGrid.add_neighborhood(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID, neighborhood);
 

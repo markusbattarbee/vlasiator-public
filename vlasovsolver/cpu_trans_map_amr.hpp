@@ -221,6 +221,10 @@ extern std::vector<CellID> LocalTranslate_active_x;
 extern std::vector<CellID> LocalTranslate_active_y;
 extern std::vector<CellID> LocalTranslate_active_z;
 
+extern std::unordered_set<CellID> LocalSet_x;
+extern std::unordered_set<CellID> LocalSet_y;
+extern std::unordered_set<CellID> LocalSet_z;
+
 void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                       const std::vector<CellID>& localPropagatedCells);
 #endif

@@ -597,6 +597,8 @@ namespace spatial_cell {
                                        (SpatialCell::mpiTransferAtSysBoundaries==true && (this->sysBoundaryLayer ==1 || this->sysBoundaryLayer ==2)) ||
                                        (SpatialCell::mpiTransferInAMRTranslation==true &&
                                         this->parameters[CellParams::AMR_TRANSLATE_COMM_X+SpatialCell::mpiTransferXYZTranslation]==true ))) {
+      // if (this->mpiTransferEnabled && ((SpatialCell::mpiTransferAtSysBoundaries==false) ||
+      //                                  (SpatialCell::mpiTransferAtSysBoundaries==true && (this->sysBoundaryLayer ==1 || this->sysBoundaryLayer ==2)))) {
 
          //add data to send/recv to displacement and block length lists
          if ((SpatialCell::mpi_transfer_type & Transfer::VEL_BLOCK_LIST_STAGE1) != 0) {
