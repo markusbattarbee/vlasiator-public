@@ -371,18 +371,18 @@ void calculateSpatialTranslation(
       remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
       remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
       remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
-   
-      // Figure out which spatial cells are translated,
-      // result independent of particle species.
-      for (size_t c=0; c<localCells.size(); ++c) {
-         if (do_translate_cell(mpiGrid[localCells[c]])) {
-            local_propagated_cells.push_back(localCells[c]);
-         }
+   }
+
+   // Figure out which local spatial cells are translated,
+   // result independent of particle species.
+   for (size_t c=0; c<localCells.size(); ++c) {
+      if (do_translate_cell(mpiGrid[localCells[c]])) {
+         local_propagated_cells.push_back(localCells[c]);
       }
    }
    if (P::prepareForRebalance == true && P::amrMaxSpatialRefLevel != 0) {
       // One more element to count the sums
-      for (size_t c=0; c<localCells.size()+1; c++) {
+      for (size_t c=0; c<local_propagated_cells.size()+1; c++) {
          nPencils.push_back(0);
       }
    }

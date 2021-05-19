@@ -232,6 +232,9 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
    LocalTranslate_active_x.clear();
    LocalTranslate_active_y.clear();
    LocalTranslate_active_z.clear();
+   LocalSet_x.clear();
+   LocalSet_y.clear();
+   LocalSet_z.clear();
 
    // Translation order (dimensions) is 1: z 2: x 3: y
    // Prepare in reverse order
@@ -1881,9 +1884,16 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    // }
    
    if (Parameters::prepareForRebalance == true) {
-      const vector<CellID>& local_cells = getLocalCells();
-      for (uint i=0; i<local_cells.size(); i++) {
-         cuint myPencilCount = std::count(DimensionPencils[dimension].ids.begin(), DimensionPencils[dimension].ids.end(), local_cells[i]);
+      const vector<CellID>& localCells = getLocalCells();
+      vector<CellID> loadbalanceCells;
+      for (size_t c=0; c<localCells.size(); ++c) {
+         if (do_translate_cell(mpiGrid[localCells[c]])) {
+            loadbalanceCells.push_back(localCells[c]);
+         }
+      }
+
+      for (uint i=0; i<loadbalanceCells.size(); i++) {
+         cuint myPencilCount = std::count(DimensionPencils[dimension].ids.begin(), DimensionPencils[dimension].ids.end(), loadbalanceCells[i]);
          nPencils[i] += myPencilCount;
          nPencils[nPencils.size()-1] += myPencilCount;
       }
