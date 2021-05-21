@@ -295,7 +295,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsP.find(nbrPair.first) != foundNeighborsP.end()) continue; // cell already found?
                foundNeighborsP.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_y.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_y.push_back(nbrPair.first);
@@ -318,7 +318,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsM.find(nbrPair.first) != foundNeighborsM.end()) continue;
                foundNeighborsM.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_y.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_y.push_back(nbrPair.first);
@@ -386,7 +386,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsP.find(nbrPair.first) != foundNeighborsP.end()) continue;
                foundNeighborsP.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_x.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_x.push_back(nbrPair.first);
@@ -409,7 +409,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsM.find(nbrPair.first) != foundNeighborsM.end()) continue;
                foundNeighborsM.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_x.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_x.push_back(nbrPair.first);
@@ -476,7 +476,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsP.find(nbrPair.first) != foundNeighborsP.end()) continue;
                foundNeighborsP.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_z.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_z.push_back(nbrPair.first);
@@ -499,7 +499,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                if (foundNeighborsM.find(nbrPair.first) != foundNeighborsM.end()) continue;
                foundNeighborsM.insert(nbrPair.first);
                if (!mpiGrid.is_local(nbrPair.first)) {
-                  // Also add first neighbor to actual translation (no check for do_translate)
+                  // Also add first neighbor to actual translation
                   if (do_translate_cell(ncell) && iSrc==VLASOV_STENCIL_WIDTH) LocalTranslate_active_z.push_back(nbrPair.first);
                   // The rest are sources
                   if (iSrc<VLASOV_STENCIL_WIDTH) LocalTranslate_sources_z.push_back(nbrPair.first);
@@ -1918,20 +1918,20 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
       std::unordered_set<vmesh::GlobalID> thread_unionOfBlocksSet;
 
 #pragma omp for
-      /*for(unsigned int i=0; i<allCellsPointer.size(); i++) {
+      /* for(unsigned int i=0; i<allCellsPointer.size(); i++) {
          auto cell = &allCellsPointer[i];
          vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& cvmesh = (*cell)->get_velocity_mesh(popID);
          for (vmesh::LocalID block_i=0; block_i< cvmesh.size(); ++block_i) {
             thread_unionOfBlocksSet.insert(cvmesh.getGlobalID(block_i));
          }
-      }*/
+         }*/
       for(unsigned int i=0; i<propagatedCellsPointer.size(); i++) {
          auto cell = &propagatedCellsPointer[i];
          vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& cvmesh = (*cell)->get_velocity_mesh(popID);
          for (vmesh::LocalID block_i=0; block_i< cvmesh.size(); ++block_i) {
             thread_unionOfBlocksSet.insert(cvmesh.getGlobalID(block_i));
          }
-      }
+         }
 
 #pragma omp critical
       {
