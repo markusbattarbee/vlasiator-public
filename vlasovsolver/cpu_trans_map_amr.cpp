@@ -1834,39 +1834,14 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
       return false;
    }
 
-   // // Vector with all cell ids
-   // vector<CellID> allCells(localPropagatedCells);
-   // allCells.insert(allCells.end(), remoteTargetCells.begin(), remoteTargetCells.end());  
+   // Vectors of pointers to the propagated cell structs
+   std::vector<SpatialCell*> propagatedCellsPointer(localPropagatedCells.size());
 
-   // Set with all cell ids
-   std::unordered_set<CellID> setAllCells;
-   for(uint celli = 0; celli < localPropagatedCells.size(); celli++){
-      setAllCells.insert(localPropagatedCells[celli]);
-   }
-   for(uint celli = 0; celli < remoteTargetCells.size(); celli++){
-      setAllCells.insert(remoteTargetCells[celli]);
-   }
-   // Convert to vector
-   vector<CellID> allCells;
-   allCells.assign(setAllCells.begin(), setAllCells.end());
-
-   // Vectors of pointers to the cell structs
-   std::vector<SpatialCell*> allCellsPointer(allCells.size());
-
-   // Initialize allCellsPointer
+   // Initialize propagatedCellsPointer
    #pragma omp parallel for
-   for(uint celli = 0; celli < allCells.size(); celli++){
-      allCellsPointer[celli] = mpiGrid[allCells[celli]];
+   for(uint celli = 0; celli < localPropagatedCells.size(); celli++){
+      propagatedCellsPointer[celli] = mpiGrid[localPropagatedCells[celli]];
    }
-
-   // // Vectors of pointers to the propagated cell structs
-   // std::vector<SpatialCell*> propagatedCellsPointer(localPropagatedCells.size());
-
-   // // Initialize propagatedCellsPointer
-   // #pragma omp parallel for
-   // for(uint celli = 0; celli < localPropagatedCells.size(); celli++){
-   //    propagatedCellsPointer[celli] = mpiGrid[localPropagatedCells[celli]];
-   // }
 
    // Fiddle indices x,y,z in VELOCITY SPACE
    switch (dimension) {
@@ -1898,9 +1873,6 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    }
            
    // ****************************************************************************
-
-   // compute pencils => set of pencils (shared datastructure)
-   // prepareSeedIdsAndPencils(mpiGrid,dimension); // moved to grid.cpp
 
    // init cellid_transpose (moved here to take advantage of the omp parallel region)
 #pragma omp parallel for collapse(3)
@@ -1939,8 +1911,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
    }
    
    // Get a pointer to the velocity mesh of the first spatial cell
-   const vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh = allCellsPointer[0]->get_velocity_mesh(popID);
-   //const vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh = propagatedCellsPointer[0]->get_velocity_mesh(popID);
+   const vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh = propagatedCellsPointer[0]->get_velocity_mesh(popID);
    
    phiprof::start("buildBlockList");
    // Get a unique sorted list of blockids that are in any of the
@@ -1957,20 +1928,13 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
       std::unordered_set<vmesh::GlobalID> thread_unionOfBlocksSet;
 
 #pragma omp for
-      for(unsigned int i=0; i<allCellsPointer.size(); i++) {
-         auto cell = &allCellsPointer[i];
-         vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& cvmesh = (*cell)->get_velocity_mesh(popID);
-         for (vmesh::LocalID block_i=0; block_i< cvmesh.size(); ++block_i) {
-            thread_unionOfBlocksSet.insert(cvmesh.getGlobalID(block_i));
-         }
-      }
-      /*for(unsigned int i=0; i<propagatedCellsPointer.size(); i++) {
+      for(unsigned int i=0; i<propagatedCellsPointer.size(); i++) {
          auto cell = &propagatedCellsPointer[i];
          vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& cvmesh = (*cell)->get_velocity_mesh(popID);
          for (vmesh::LocalID block_i=0; block_i< cvmesh.size(); ++block_i) {
             thread_unionOfBlocksSet.insert(cvmesh.getGlobalID(block_i));
          }
-      }*/
+      }
 
 #pragma omp critical
       {
