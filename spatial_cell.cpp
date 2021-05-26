@@ -590,9 +590,9 @@ namespace spatial_cell {
       std::vector<int> block_lengths;
       vmesh::LocalID block_index = 0;
 
-      // create datatype for actual data if we are in the first two 
-      // layers around a boundary, or if we send for the whole system
-      // in AMR translation, only send the necessary cells
+      // Creates a datatype for actual data if we are in the first two
+      // layers around a boundary, or if we send for the whole system.
+      // in AMR translation, only send the necessary cells.
       if (this->mpiTransferEnabled && ((SpatialCell::mpiTransferAtSysBoundaries==false && SpatialCell::mpiTransferInAMRTranslation==false) ||
                                        (SpatialCell::mpiTransferAtSysBoundaries==true && (this->sysBoundaryLayer ==1 || this->sysBoundaryLayer ==2)) ||
                                        (SpatialCell::mpiTransferInAMRTranslation==true &&
