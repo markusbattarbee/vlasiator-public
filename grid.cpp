@@ -598,11 +598,7 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    phiprof::start("update block lists");
    //new partition, re/initialize blocklists of remote cells.
    for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
-      if (P::vlasovSolverLocalTranslate) {
-         updateRemoteVelocityBlockLists(mpiGrid,popID,FULL_NEIGHBORHOOD_ID);
-      } else {
-         updateRemoteVelocityBlockLists(mpiGrid,popID);
-      }
+      updateRemoteVelocityBlockLists(mpiGrid,popID);
    }
    phiprof::stop("update block lists");
 
@@ -718,11 +714,7 @@ bool adjustVelocityBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& m
    //Updated newly adjusted velocity block lists on remote cells, and
    //prepare to receive block data
    if (doPrepareToReceiveBlocks) {
-      if (P::vlasovSolverLocalTranslate) {
-         updateRemoteVelocityBlockLists(mpiGrid,popID,VLASOV_SOLVER_NEIGHBORHOOD_ID);
-      } else {
-         updateRemoteVelocityBlockLists(mpiGrid,popID);
-      }
+      updateRemoteVelocityBlockLists(mpiGrid,popID);
    }
    phiprof::stop("re-adjust blocks");
    return true;
@@ -1056,11 +1048,14 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    mpiGrid.add_neighborhood(VLASOV_SOLVER_NEIGHBORHOOD_ID, neighborhood);
 
    // add remaining nearest neighbors for DIST_FUNC neighborhood
+   // Local translation already includes these
    if (!P::vlasovSolverLocalTranslate) {
       for (int z = -1; z <= 1; z++) {
          for (int y = -1; y <= 1; y++) {
             for (int x = -1; x <= 1; x++) {
-               if (x == 0 || y == 0 || z == 0) continue;
+               if (x == 0 && y == 0 ) continue;
+               if (x == 0 && z == 0 ) continue;
+               if (y == 0 && z == 0 ) continue;
                neigh_t offsets = {{x, y, z}};
                neighborhood.push_back(offsets);
             }
@@ -1069,23 +1064,32 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    }
    mpiGrid.add_neighborhood(DIST_FUNC_NEIGHBORHOOD_ID, neighborhood);
 
-   /* Full communication: add extended sysboundaries to Vlasov neighborhood*/
+   /* Full communication: add extended sysboundaries to Vlasov neighborhood
+      already defined for local translation
+   */
    if (!P::vlasovSolverLocalTranslate) {
+      neighborhood.clear();
       int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
       for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
          for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
             for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
-               if (abs(x)<=1 && abs(y)<=1 && abs(z)<=1) continue;
-               if (x == 0 && y == 0) continue;
-               if (x == 0 && z == 0) continue;
-               if (y == 0 && z == 0) continue;
+               if (x == 0 && y == 0 && z == 0) {
+                  continue;
+               }
                neigh_t offsets = {{x, y, z}};
                neighborhood.push_back(offsets);
             }
          }
       }
-      std::sort(neighborhood.begin(),neighborhood.end());
-      neighborhood.erase(unique(neighborhood.begin(), neighborhood.end()), neighborhood.end());
+      /* Add extra face neighbors if required by AMR */
+      for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
+         neighborhood.push_back({{ d, 0, 0}});
+         neighborhood.push_back({{-d, 0, 0}});
+         neighborhood.push_back({{0, d, 0}});
+         neighborhood.push_back({{0,-d, 0}});
+         neighborhood.push_back({{0, 0, d}});
+         neighborhood.push_back({{0, 0,-d}});
+      }
    }
    /* all possible communication pairs */
    mpiGrid.add_neighborhood(FULL_NEIGHBORHOOD_ID, neighborhood);
