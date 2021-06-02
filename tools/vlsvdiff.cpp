@@ -1310,15 +1310,23 @@ bool compareAvgs( const string fileName1,
       // Store the avgs in avgs1 and 2:
       if( readAvgs( vlsvReader1, "proton", cellsWithBlocksLocations1, cellId1, avgs1 ) == false ) {
          if( readAvgs( vlsvReader1, "avgs", cellsWithBlocksLocations1, cellId1, avgs1 ) == false ) {
-            cerr << "ERROR, FAILED TO READ AVGS AT " << __FILE__ << " " << __LINE__ << endl;
-            return false;
+            if( readAvgs( vlsvReader1, "helium", cellsWithBlocksLocations1, cellId1, avgs1 ) == false ) {
+               if( readAvgs( vlsvReader1, "electron", cellsWithBlocksLocations1, cellId1, avgs1 ) == false ) {
+                  cerr << "ERROR, FAILED TO READ AVGS AT " << __FILE__ << " " << __LINE__ << endl;
+                  return false;
+               }
+            }
          }
       }
       
       if( readAvgs( vlsvReader2, "proton", cellsWithBlocksLocations2, cellId2, avgs2 ) == false ) {
          if( readAvgs( vlsvReader2, "avgs", cellsWithBlocksLocations2, cellId2, avgs2 ) == false ) {
-            cerr << "ERROR, FAILED TO READ AVGS AT " << __FILE__ << " " << __LINE__ << endl;
-            return false;
+            if( readAvgs( vlsvReader2, "helium", cellsWithBlocksLocations2, cellId2, avgs2 ) == false ) {
+               if( readAvgs( vlsvReader2, "electron", cellsWithBlocksLocations2, cellId2, avgs2 ) == false ) {
+                  cerr << "ERROR, FAILED TO READ AVGS AT " << __FILE__ << " " << __LINE__ << endl;
+                  return false;
+               }
+            }
          }
       }
    
@@ -1493,7 +1501,7 @@ bool process2Files(const string fileName1,
    Real absolute, relative, mini, maxi, size, avg, stdev;
 
    // If the user wants to check avgs, call the avgs check function and return it. Otherwise move on to compare variables:
-   if( strcmp(varToExtract, "proton") == 0 && attributes.find("--no-distrib") == attributes.end()) {
+   if( ((strcmp(varToExtract, "proton") == 0) || (strcmp(varToExtract, "avgs") == 0) || (strcmp(varToExtract, "helium") == 0) || (strcmp(varToExtract, "electron") == 0)) && (attributes.find("--no-distrib") == attributes.end()) ) {
       vector<uint64_t> cellIds1;
       vector<uint64_t> cellIds2;
       cellIds1.reserve(1);
