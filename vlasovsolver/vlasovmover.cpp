@@ -265,7 +265,7 @@ void calculateSpatialLocalTranslation(
 
     int trans_timer;
     bool AMRtranslationActive = false;
-    //if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
+    if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
 
     // int myRank;
     // MPI_Comm_rank(MPI_COMM_WORLD,&myRank);

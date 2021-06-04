@@ -224,17 +224,17 @@ void findNeighborhoodCells(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
    
    SpatialCell *ccell = mpiGrid[startingCell];
    if (!ccell) return;
-   // Is the cell translated?
-   if (!do_translate_cell(ccell)) return;
    
    std::set< int > distancesplus;
    std::set< int > distancesminus;
-   std::set<CellID> foundNeighborsP;
-   std::set<CellID> foundNeighborsM;
+   std::unordered_set<CellID> foundNeighborsP;
+   std::unordered_set<CellID> foundNeighborsM;
+   std::unordered_set<CellID> foundSet;
       
    const auto* NbrPairs = mpiGrid.get_neighbors_of(startingCell, neighborhood);
       
    // Create list of unique distances
+   // Check for already found cells is required as one cell can be listed at several different distances
    for (const auto nbrPair : *NbrPairs) {
       if(nbrPair.second[dimension] > 0) {
          if (foundNeighborsP.find(nbrPair.first) == foundNeighborsP.end()) {
@@ -260,13 +260,12 @@ void findNeighborhoodCells(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
          if (!ncell) continue;
          int distanceInRefinedCells = nbrPair.second[dimension];
          if (distanceInRefinedCells == *it) {
-            if (std::find(foundCells.begin(), foundCells.end(), nbrPair.first) != foundCells.end()) continue;
-            foundCells.push_back(nbrPair.first);
+            foundSet.insert(nbrPair.first);
          }
       } // end loop over neighbors
       iSrc--;
    } // end loop over positive distances
-      
+
    iSrc = searchLength-1;
    // Iterate through negtive distances starting from the smallest distance.
    for (auto it = distancesminus.begin(); it != distancesminus.end(); ++it) {
@@ -277,19 +276,18 @@ void findNeighborhoodCells(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
          if (!ncell) continue;
          int distanceInRefinedCells = -nbrPair.second[dimension];
          if (distanceInRefinedCells == *it) {
-            if (std::find(foundCells.begin(), foundCells.end(), nbrPair.first) != foundCells.end()) continue;
-            foundCells.push_back(nbrPair.first);
+            foundSet.insert(nbrPair.first);
          }
       } // end loop over neighbors
       iSrc--;
    } // end loop over negative distances
-
+   foundCells.assign(foundSet.begin(), foundSet.end());
 }
 
 void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                       const vector<CellID>& localPropagatedCells) {
 
-   // Also performs AMR communication flag setting
+   // Also performs AMR communication flag setting in a second loop
 
    // return if there's no cells to start with
    if(localPropagatedCells.size() == 0) {
@@ -307,6 +305,8 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
    LocalSet_x.clear();
    LocalSet_y.clear();
    LocalSet_z.clear();
+   std::unordered_set<CellID> SourceSet_x,SourceSet_y,SourceSet_z;
+   std::vector<CellID> foundCells_x, foundCells_y, foundCells_z;
 
    // Translation order (dimensions) is 1: z 2: x 3: y
    // Prepare in reverse order
@@ -320,29 +320,19 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
       if (!ccell) continue;
 
       // Is the cell translated?
-      //if (!do_translate_cell(ccell)) continue;
-      if (!do_translate_cell(ccell)) {
-         ccell->SpatialCell::parameters[CellParams::AMR_TRANSLATE_COMM_X] = true;
-         continue;
-      }
+      if (!do_translate_cell(ccell)) continue;
       
-      // Init: set the X-communication flag to false
-      bool transferflag=false;
+      LocalSet_x.insert(c);
+      LocalSet_y.insert(c);
+      LocalSet_z.insert(c);
 
-      LocalTranslate_active_x.push_back(c);
-      LocalTranslate_active_y.push_back(c);
-      LocalTranslate_active_z.push_back(c);
-
-      std::vector<CellID> foundCells_x;
-      std::vector<CellID> foundCells_y;
-      std::vector<CellID> foundCells_z;
       // First y-translation active
       findNeighborhoodCells(mpiGrid, c, 1, 1, foundCells_y);
       for (uint j=0; j<foundCells_y.size(); j++) {
          CellID ny = foundCells_y[j];
          SpatialCell *nycell = mpiGrid[ny];
          if (!nycell) continue;
-         if (do_translate_cell(nycell)) LocalTranslate_active_y.push_back(ny);
+         if (do_translate_cell(nycell)) LocalSet_y.insert(ny);
       }
       // Then y-translation source
       findNeighborhoodCells(mpiGrid, c, 1, VLASOV_STENCIL_WIDTH+1, foundCells_y);
@@ -351,15 +341,11 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
          CellID ny = foundCells_y[j];
          SpatialCell *nycell = mpiGrid[ny];
          if (!nycell) continue;
-         //if (mpiGrid.is_local(ny) && ny!=c && transfer) continue;
-         LocalTranslate_sources_y.push_back(ny);
-         if (!mpiGrid.is_local(ny)) {
-            transferflag = true;
-         }
+         SourceSet_y.insert(ny);
          // Is the cell translated?
          if (!do_translate_cell(nycell)) continue;
-         //if (do_translate_cell(nycell))
-         LocalTranslate_active_x.push_back(ny);
+         if (mpiGrid.is_local(ny) && ny!=c) continue;
+         LocalSet_x.insert(ny);
          /** Now use y-translation source cells as starting points
              and evaluate x-direction
          */
@@ -369,9 +355,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
             CellID nx = foundCells_x[k];
             SpatialCell *nxcell = mpiGrid[nx];
             if (!nxcell) continue;
-            //if (mpiGrid.is_local(nx) && nx!=c) continue;
-            // Is the cell translated?
-            if (do_translate_cell(nxcell)) LocalTranslate_active_x.push_back(nx);
+            if (do_translate_cell(nxcell)) LocalSet_x.insert(nx);
          }
          // Then x-translation source
          findNeighborhoodCells(mpiGrid, ny, 0, VLASOV_STENCIL_WIDTH+1, foundCells_x);
@@ -380,15 +364,11 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
             CellID nx = foundCells_x[k];
             SpatialCell *nxcell = mpiGrid[nx];
             if (!nxcell) continue;
-            //if (mpiGrid.is_local(nx) && nx!=c && transferflag) continue;
-            LocalTranslate_sources_x.push_back(nx);
-            if (!mpiGrid.is_local(ny)) {
-               transferflag = true;
-            }
+            SourceSet_x.insert(nx);
             // Is the cell translated?
             if (!do_translate_cell(nxcell)) continue;
-            //if (do_translate_cell(nxcell))
-            LocalTranslate_active_z.push_back(ny);
+            if (mpiGrid.is_local(nx) && nx!=c) continue;
+            LocalSet_z.insert(nx);
              /** Now use x-translation source cells as starting points
                 and evaluate z-direction
             */
@@ -398,9 +378,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                CellID nz = foundCells_z[l];
                SpatialCell *nzcell = mpiGrid[nz];
                if (!nzcell) continue;
-               //if (mpiGrid.is_local(nz) && nz!=c) continue;
-               // Is the cell translated?
-               if (do_translate_cell(nzcell)) LocalTranslate_active_z.push_back(nz);
+               if (do_translate_cell(nzcell)) LocalSet_z.insert(nz);
             }
             // Then z-translation source
             findNeighborhoodCells(mpiGrid, nx, 2, VLASOV_STENCIL_WIDTH+1, foundCells_z);
@@ -409,70 +387,78 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                CellID nz = foundCells_z[l];
                SpatialCell *nzcell = mpiGrid[nz];
                if (!nzcell) continue;
-               //if (mpiGrid.is_local(nz) && nz!=c && transferflag) continue;
-               LocalTranslate_sources_z.push_back(nz);
-               // Flag
-               if (!mpiGrid.is_local(nz)) {
+               SourceSet_z.insert(nz);
+            }
+         }
+      }
+   } // end loop over local cells
+
+   // Now set flags. We search for remote cells which need data from this cell, so we do the search
+   // in the reverse coordinate direction (1: z 2: x 3: y)
+   for (uint i=0; i<localPropagatedCells.size(); i++) {
+      CellID c = localPropagatedCells[i];
+      SpatialCell *ccell = mpiGrid[c];
+      if (!ccell) continue;
+
+      // Init: set the X-communication flag to false
+      bool transferflag=false;
+
+      // First z-translation source
+      findNeighborhoodCells(mpiGrid, c, 2, VLASOV_STENCIL_WIDTH+1, foundCells_z);
+      foundCells_z.push_back(c); // add self for iterative search      
+      for (uint l=0; l<foundCells_z.size(); l++) {
+         CellID nz = foundCells_z[l];
+         SpatialCell *nzcell = mpiGrid[nz];
+         if (!nzcell) continue;
+         if (!do_translate_cell(nzcell) && nz != c) continue;
+         if (!mpiGrid.is_local(nz)) {
+            transferflag = true;
+            goto flagSetting;
+         }
+         /** Now use z-translation source cells as starting points
+             and evaluate x-direction
+         */
+         findNeighborhoodCells(mpiGrid, nz, 0, VLASOV_STENCIL_WIDTH+1, foundCells_x);
+         foundCells_x.push_back(nz); // add self for iterative search
+         for (uint k=0; k<foundCells_x.size(); k++) {
+            CellID nx = foundCells_x[k];
+            SpatialCell *nxcell = mpiGrid[nx];
+            if (!nxcell) continue;
+            if (!do_translate_cell(nxcell) && nx != nz) continue;
+            if (!mpiGrid.is_local(nx)) {
+               transferflag = true;
+               goto flagSetting;
+            }
+             /** Now use x-translation source cells as starting points
+                and evaluate y-direction
+            */
+            findNeighborhoodCells(mpiGrid, nx, 1, VLASOV_STENCIL_WIDTH+1, foundCells_y);
+            foundCells_y.push_back(nx); // add self for iterative search
+            for (uint j=0; j<foundCells_y.size(); j++) {
+               CellID ny = foundCells_y[j];
+               SpatialCell *nycell = mpiGrid[ny];
+               if (!nycell) continue;
+               if (!mpiGrid.is_local(ny) && do_translate_cell(nycell)) {
                   transferflag = true;
+                  goto flagSetting;
+               } else {
+                  if (!do_translate_cell(ccell) && (k==foundCells_x.size()-1) && (j==foundCells_y.size()-1) && (l==foundCells_z.size()-1)) {
+                     std::cerr<<c<<" nx "<<nx<<" ny "<<ny<<" nz "<<nz<<" i "<<i<<" j "<<j<<" k "<<k<<" l "<<l<<std::endl;
+                  }
                }
             }
          }
       }
+     flagSetting:
       ccell->SpatialCell::parameters[CellParams::AMR_TRANSLATE_COMM_X] = transferflag;
-   } // end loop over local propagated cells
+   } // end loop over local cells
 
-   // Erase duplicates
-   // std::sort(LocalTranslate_active_x.begin(),LocalTranslate_active_x.end());
-   // LocalTranslate_active_x.erase(unique(LocalTranslate_active_x.begin(), LocalTranslate_active_x.end()), LocalTranslate_active_x.end());
-   // std::sort(LocalTranslate_active_y.begin(),LocalTranslate_active_y.end());
-   // LocalTranslate_active_y.erase(unique(LocalTranslate_active_y.begin(), LocalTranslate_active_y.end()), LocalTranslate_active_y.end());
-   // std::sort(LocalTranslate_active_z.begin(),LocalTranslate_active_z.end());
-   // LocalTranslate_active_z.erase(unique(LocalTranslate_active_z.begin(), LocalTranslate_active_z.end()), LocalTranslate_active_z.end());
-
-   // std::sort(LocalTranslate_sources_x.begin(),LocalTranslate_sources_x.end());
-   // LocalTranslate_sources_x.erase(unique(LocalTranslate_sources_x.begin(), LocalTranslate_sources_x.end()), LocalTranslate_sources_x.end());
-   // std::sort(LocalTranslate_sources_y.begin(),LocalTranslate_sources_y.end());
-   // LocalTranslate_sources_y.erase(unique(LocalTranslate_sources_y.begin(), LocalTranslate_sources_y.end()), LocalTranslate_sources_y.end());
-   // std::sort(LocalTranslate_sources_z.begin(),LocalTranslate_sources_z.end());
-   // LocalTranslate_sources_z.erase(unique(LocalTranslate_sources_z.begin(), LocalTranslate_sources_z.end()), LocalTranslate_sources_z.end());
-
-   // Store values in sets for faster lookups of locality
-   for(uint celli = 0; celli < LocalTranslate_active_x.size(); celli++){
-      LocalSet_x.insert(LocalTranslate_active_x[celli]);
-   }
-   for(uint celli = 0; celli < LocalTranslate_active_y.size(); celli++){
-      LocalSet_y.insert(LocalTranslate_active_y[celli]);
-   }
-   for(uint celli = 0; celli < LocalTranslate_active_z.size(); celli++){
-      LocalSet_z.insert(LocalTranslate_active_z[celli]);
-   }
-   std::unordered_set<CellID> Sources_x, Sources_y, Sources_z;
-   for(uint celli = 0; celli < LocalTranslate_sources_x.size(); celli++){
-      Sources_x.insert(LocalTranslate_sources_x[celli]);
-   }
-   for(uint celli = 0; celli < LocalTranslate_sources_y.size(); celli++){
-      Sources_y.insert(LocalTranslate_sources_y[celli]);
-   }
-   for(uint celli = 0; celli < LocalTranslate_sources_z.size(); celli++){
-      Sources_z.insert(LocalTranslate_sources_z[celli]);
-   }
-   LocalTranslate_active_x.clear();
-   LocalTranslate_active_y.clear();
-   LocalTranslate_active_z.clear();
-   LocalTranslate_sources_x.clear();
-   LocalTranslate_sources_y.clear();
-   LocalTranslate_sources_z.clear();
    LocalTranslate_active_x.assign(LocalSet_x.begin(), LocalSet_x.end());
    LocalTranslate_active_y.assign(LocalSet_y.begin(), LocalSet_y.end());
    LocalTranslate_active_z.assign(LocalSet_z.begin(), LocalSet_z.end());
-   LocalTranslate_sources_x.assign(Sources_x.begin(), Sources_x.end());
-   LocalTranslate_sources_y.assign(Sources_y.begin(), Sources_y.end());
-   LocalTranslate_sources_z.assign(Sources_z.begin(), Sources_z.end());
-   
-   int myRank;
-   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
-   std::cerr<<"myRank "<<myRank<<" L "<<localPropagatedCells.size()<<" x "<<LocalTranslate_active_x.size()<<" y "<<LocalTranslate_active_y.size()<<" z "<<LocalTranslate_active_z.size()<<std::endl;
-   std::cerr<<"myRank "<<myRank<<" Sx "<<LocalTranslate_sources_x.size()<<" Sy "<<LocalTranslate_sources_y.size()<<" Sz "<<LocalTranslate_sources_z.size()<<std::endl;
+   LocalTranslate_sources_x.assign(SourceSet_x.begin(), SourceSet_x.end());
+   LocalTranslate_sources_y.assign(SourceSet_y.begin(), SourceSet_y.end());
+   LocalTranslate_sources_z.assign(SourceSet_z.begin(), SourceSet_z.end());
 
    return;
 }
@@ -804,11 +790,6 @@ void prepareLocalTranslationCellListsOld(const dccrg::Dccrg<SpatialCell,dccrg::C
    LocalTranslate_sources_x.assign(Sources_x.begin(), Sources_x.end());
    LocalTranslate_sources_y.assign(Sources_y.begin(), Sources_y.end());
    LocalTranslate_sources_z.assign(Sources_z.begin(), Sources_z.end());
-
-   int myRank;
-   MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
-   std::cerr<<"myRank"<<myRank<<"L"<<localPropagatedCells.size()<<"x"<<LocalTranslate_active_x.size()<<"y"<<LocalTranslate_active_y.size()<<"z"<<LocalTranslate_active_z.size()<<std::endl;
-   std::cerr<<"myRank "<<myRank<<" Sx "<<LocalTranslate_sources_x.size()<<" Sy "<<LocalTranslate_sources_y.size()<<" Sz "<<LocalTranslate_sources_z.size()<<std::endl;
 
    return;
 }
