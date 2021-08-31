@@ -190,7 +190,9 @@ namespace projects {
        if (v>sP.mushape_maxv) return 0.0;
        // find mu
        // For now, assume B=Bx
-       Real mu = vx/sqrt(vy*vy+vz*vz);
+       //Real mu = vx/sqrt(vy*vy+vz*vz);
+       // For now, assume B=Bz
+       Real mu = vz/sqrt(vy*vy+vx*vx);
        return sP.mushape_A*(mu+1.)*(mu+1.) + sP.mushape_B;
     }
 
