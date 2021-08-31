@@ -46,6 +46,7 @@
 #include "Riemann1/Riemann1.h"
 #include "Shock/Shock.h"
 #include "IPShock/IPShock.h"
+#include "DiffusionShock/DiffusionShock.h"
 #include "Template/Template.h"
 #include "test_fp/test_fp.h"
 #include "testAmr/testAmr.h"
@@ -123,6 +124,7 @@ namespace projects {
       projects::Riemann1::addParameters();
       projects::Shock::addParameters();
       projects::IPShock::addParameters();
+      projects::DiffusionShock::addParameters();
       projects::Template::addParameters();
       projects::test_fp::addParameters();
       projects::testAmr::addParameters();
@@ -662,6 +664,9 @@ Project* createProject() {
    }
    if(Parameters::projectName == "IPShock") {
       rvalue = new projects::IPShock;
+   }
+   if(Parameters::projectName == "DiffusionShock") {
+      rvalue = new projects::DiffusionShock;
    }
    if(Parameters::projectName == "Template") {
       rvalue = new projects::Template;
