@@ -37,118 +37,118 @@ Previous development version name was UtuShock
 #include "../../backgroundfield/backgroundfield.h"
 #include "../../object_wrapper.h"
 
-#include "Diffusionshock.h"
+#include "DiffusionShock.h"
 
 using namespace std;
 using namespace spatial_cell;
 
 namespace projects {
-  Diffusionshock::Diffusionshock(): TriAxisSearch() { }
-  Diffusionshock::~Diffusionshock() { }
+  DiffusionShock::DiffusionShock(): TriAxisSearch() { }
+  DiffusionShock::~DiffusionShock() { }
   
-  bool Diffusionshock::initialize() {
+  bool DiffusionShock::initialize() {
     return Project::initialize();
   }
   
-  void Diffusionshock::addParameters() {
+  void DiffusionShock::addParameters() {
     typedef Readparameters RP;
     // Common (field / etc.) parameters
-    RP::add("Diffusionshock.BX0u", "Upstream mag. field value (T)", 1.0e-9);
-    RP::add("Diffusionshock.BY0u", "Upstream mag. field value (T)", 2.0e-9);
-    RP::add("Diffusionshock.BZ0u", "Upstream mag. field value (T)", 3.0e-9);
-    RP::add("Diffusionshock.BX0d", "Downstream mag. field value (T)", 1.0e-9);
-    RP::add("Diffusionshock.BY0d", "Downstream mag. field value (T)", 2.0e-9);
-    RP::add("Diffusionshock.BZ0d", "Downstream mag. field value (T)", 3.0e-9);
-    RP::add("Diffusionshock.Width", "Shock Width (m)", 50000);
+    RP::add("DiffusionShock.BX0u", "Upstream mag. field value (T)", 1.0e-9);
+    RP::add("DiffusionShock.BY0u", "Upstream mag. field value (T)", 2.0e-9);
+    RP::add("DiffusionShock.BZ0u", "Upstream mag. field value (T)", 3.0e-9);
+    RP::add("DiffusionShock.BX0d", "Downstream mag. field value (T)", 1.0e-9);
+    RP::add("DiffusionShock.BY0d", "Downstream mag. field value (T)", 2.0e-9);
+    RP::add("DiffusionShock.BZ0d", "Downstream mag. field value (T)", 3.0e-9);
+    RP::add("DiffusionShock.Width", "Shock Width (m)", 50000);
 
-    RP::add("Diffusionshock.AMR_L1width", "L1 AMR region width (m)", 0);
-    RP::add("Diffusionshock.AMR_L2width", "L2 AMR region width (m)", 0);
-    RP::add("Diffusionshock.AMR_L3width", "L3 AMR region width (m)", 0);
-    RP::add("Diffusionshock.AMR_L4width", "L4 AMR region width (m)", 0);
+    RP::add("DiffusionShock.AMR_L1width", "L1 AMR region width (m)", 0);
+    RP::add("DiffusionShock.AMR_L2width", "L2 AMR region width (m)", 0);
+    RP::add("DiffusionShock.AMR_L3width", "L3 AMR region width (m)", 0);
+    RP::add("DiffusionShock.AMR_L4width", "L4 AMR region width (m)", 0);
 
     // Per-population parameters
     for(uint i=0; i< getObjectWrapper().particleSpecies.size(); i++) {
        const std::string& pop = getObjectWrapper().particleSpecies[i].name;
-       RP::add(pop + "_Diffusionshock.VX0u", "Upstream Bulk velocity in x", 0.0);
-       RP::add(pop + "_Diffusionshock.VY0u", "Upstream Bulk velocity in y", 0.0);
-       RP::add(pop + "_Diffusionshock.VZ0u", "Upstream Bulk velocuty in z", 0.0);
-       RP::add(pop + "_Diffusionshock.rhou", "Upstream Number density (m^-3)", 1.0e7);
-       RP::add(pop + "_Diffusionshock.Temperatureu", "Upstream Temperature (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.VX0u", "Upstream Bulk velocity in x", 0.0);
+       RP::add(pop + "_DiffusionShock.VY0u", "Upstream Bulk velocity in y", 0.0);
+       RP::add(pop + "_DiffusionShock.VZ0u", "Upstream Bulk velocuty in z", 0.0);
+       RP::add(pop + "_DiffusionShock.rhou", "Upstream Number density (m^-3)", 1.0e7);
+       RP::add(pop + "_DiffusionShock.Temperatureu", "Upstream Temperature (K)", 2.0e6);
 
-       RP::add(pop + "_Diffusionshock.VX0d", "Downstream Bulk velocity in x", 0.0);
-       RP::add(pop + "_Diffusionshock.VY0d", "Downstream Bulk velocity in y", 0.0);
-       RP::add(pop + "_Diffusionshock.VZ0d", "Downstream Bulk velocuty in z", 0.0);
-       RP::add(pop + "_Diffusionshock.rhod", "Downstream Number density (m^-3)", 1.0e7);
-       RP::add(pop + "_Diffusionshock.Temperatured", "Downstream Temperature (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.VX0d", "Downstream Bulk velocity in x", 0.0);
+       RP::add(pop + "_DiffusionShock.VY0d", "Downstream Bulk velocity in y", 0.0);
+       RP::add(pop + "_DiffusionShock.VZ0d", "Downstream Bulk velocuty in z", 0.0);
+       RP::add(pop + "_DiffusionShock.rhod", "Downstream Number density (m^-3)", 1.0e7);
+       RP::add(pop + "_DiffusionShock.Temperatured", "Downstream Temperature (K)", 2.0e6);
 
-       RP::add(pop + "_Diffusionshock.nSpaceSamples", "Number of sampling points per spatial dimension", 2);
-       RP::add(pop + "_Diffusionshock.nVelocitySamples", "Number of sampling points per velocity dimension", 5);
-       RP::add(pop + "_Diffusionshock.maxwCutoff", "Cutoff for the maxwellian distribution", 1e-12);
+       RP::add(pop + "_DiffusionShock.nSpaceSamples", "Number of sampling points per spatial dimension", 2);
+       RP::add(pop + "_DiffusionShock.nVelocitySamples", "Number of sampling points per velocity dimension", 5);
+       RP::add(pop + "_DiffusionShock.maxwCutoff", "Cutoff for the maxwellian distribution", 1e-12);
 
-       RP::add(pop + "_Diffusionshock.mushape_minv", "Minimum initialised velocity for parabolic mu-dist (m^-6 s^3)", 0.0e6);
-       RP::add(pop + "_Diffusionshock.mushape_maxv", "Maximum initialised velocity for parabolic mu-dist (m^-6 s^3)", 0.0e6);
-       RP::add(pop + "_Diffusionshock.mushape_A", "Shape coefficient A for parabolic mu-dist (m^-6 s^3)", 2.0e-12);
-       RP::add(pop + "_Diffusionshock.mushape_B", "Base phase-space density B for parabolic mu-dist (m^-6 s^3)", 1.0e-12);
+       RP::add(pop + "_DiffusionShock.mushape_minv", "Minimum initialised velocity for parabolic mu-dist (m^-6 s^3)", 0.0e6);
+       RP::add(pop + "_DiffusionShock.mushape_maxv", "Maximum initialised velocity for parabolic mu-dist (m^-6 s^3)", 0.0e6);
+       RP::add(pop + "_DiffusionShock.mushape_A", "Shape coefficient A for parabolic mu-dist (m^-6 s^3)", 2.0e-12);
+       RP::add(pop + "_DiffusionShock.mushape_B", "Base phase-space density B for parabolic mu-dist (m^-6 s^3)", 1.0e-12);
     }
 
   }
 
-  void Diffusionshock::getParameters() {
+  void DiffusionShock::getParameters() {
     Project::getParameters();
 
     typedef Readparameters RP;
-    RP::get("Diffusionshock.BX0u", this->B0u[0]);
-    RP::get("Diffusionshock.BY0u", this->B0u[1]);
-    RP::get("Diffusionshock.BZ0u", this->B0u[2]);
-    RP::get("Diffusionshock.BX0d", this->B0d[0]);
-    RP::get("Diffusionshock.BY0d", this->B0d[1]);
-    RP::get("Diffusionshock.BZ0d", this->B0d[2]);
-    RP::get("Diffusionshock.Width", this->Shockwidth);
+    RP::get("DiffusionShock.BX0u", this->B0u[0]);
+    RP::get("DiffusionShock.BY0u", this->B0u[1]);
+    RP::get("DiffusionShock.BZ0u", this->B0u[2]);
+    RP::get("DiffusionShock.BX0d", this->B0d[0]);
+    RP::get("DiffusionShock.BY0d", this->B0d[1]);
+    RP::get("DiffusionShock.BZ0d", this->B0d[2]);
+    RP::get("DiffusionShock.Width", this->Shockwidth);
 
     if (abs(this->B0u[0]-this->B0d[0]) > std::numeric_limits<double>::min()) {
        std::cerr<<"Warning! Bx component changes between upstream and downstream. Divergence of B!"<<std::endl;
     }
 
-    RP::get("Diffusionshock.AMR_L1width", this->AMR_L1width);
-    RP::get("Diffusionshock.AMR_L2width", this->AMR_L2width);
-    RP::get("Diffusionshock.AMR_L3width", this->AMR_L3width);
-    RP::get("Diffusionshock.AMR_L4width", this->AMR_L4width);
+    RP::get("DiffusionShock.AMR_L1width", this->AMR_L1width);
+    RP::get("DiffusionShock.AMR_L2width", this->AMR_L2width);
+    RP::get("DiffusionShock.AMR_L3width", this->AMR_L3width);
+    RP::get("DiffusionShock.AMR_L4width", this->AMR_L4width);
 
     // Per-population parameters
     for(uint i=0; i< getObjectWrapper().particleSpecies.size(); i++) {
        const std::string& pop = getObjectWrapper().particleSpecies[i].name;
-       DiffusionshockSpeciesParameters sP;
+       DiffusionShockSpeciesParameters sP;
 
-       RP::get(pop + "_Diffusionshock.VX0u", sP.V0u[0]);
-       RP::get(pop + "_Diffusionshock.VY0u", sP.V0u[1]);
-       RP::get(pop + "_Diffusionshock.VZ0u", sP.V0u[2]);
-       RP::get(pop + "_Diffusionshock.rhou", sP.DENSITYu);
-       RP::get(pop + "_Diffusionshock.Temperatureu", sP.TEMPERATUREu);
+       RP::get(pop + "_DiffusionShock.VX0u", sP.V0u[0]);
+       RP::get(pop + "_DiffusionShock.VY0u", sP.V0u[1]);
+       RP::get(pop + "_DiffusionShock.VZ0u", sP.V0u[2]);
+       RP::get(pop + "_DiffusionShock.rhou", sP.DENSITYu);
+       RP::get(pop + "_DiffusionShock.Temperatureu", sP.TEMPERATUREu);
 
-       RP::get(pop + "_Diffusionshock.VX0d", sP.V0d[0]);
-       RP::get(pop + "_Diffusionshock.VY0d", sP.V0d[1]);
-       RP::get(pop + "_Diffusionshock.VZ0d", sP.V0d[2]);
-       RP::get(pop + "_Diffusionshock.rhod", sP.DENSITYd);
-       RP::get(pop + "_Diffusionshock.Temperatured", sP.TEMPERATUREd);
+       RP::get(pop + "_DiffusionShock.VX0d", sP.V0d[0]);
+       RP::get(pop + "_DiffusionShock.VY0d", sP.V0d[1]);
+       RP::get(pop + "_DiffusionShock.VZ0d", sP.V0d[2]);
+       RP::get(pop + "_DiffusionShock.rhod", sP.DENSITYd);
+       RP::get(pop + "_DiffusionShock.Temperatured", sP.TEMPERATUREd);
 
-       RP::get(pop + "_Diffusionshock.nSpaceSamples", sP.nSpaceSamples);
-       RP::get(pop + "_Diffusionshock.nVelocitySamples", sP.nVelocitySamples);
-       RP::get(pop + "_Diffusionshock.maxwCutoff", sP.maxwCutoff);
+       RP::get(pop + "_DiffusionShock.nSpaceSamples", sP.nSpaceSamples);
+       RP::get(pop + "_DiffusionShock.nVelocitySamples", sP.nVelocitySamples);
+       RP::get(pop + "_DiffusionShock.maxwCutoff", sP.maxwCutoff);
 
-       RP::get(pop + "_Diffusionshock.mushape_minv", sP.mushape_minv);
-       RP::get(pop + "_Diffusionshock.mushape_maxv", sP.mushape_maxv);
-       RP::get(pop + "_Diffusionshock.mushape_A", sP.mushape_A);
-       RP::get(pop + "_Diffusionshock.mushape_B", sP.mushape_B);
+       RP::get(pop + "_DiffusionShock.mushape_minv", sP.mushape_minv);
+       RP::get(pop + "_DiffusionShock.mushape_maxv", sP.mushape_maxv);
+       RP::get(pop + "_DiffusionShock.mushape_A", sP.mushape_A);
+       RP::get(pop + "_DiffusionShock.mushape_B", sP.mushape_B);
        speciesParams.push_back(sP);
     }
   }
 
 
-  std::vector<std::array<Real, 3>> Diffusionshock::getV0(creal x, creal y, creal z, const uint popID) const {
+  std::vector<std::array<Real, 3>> DiffusionShock::getV0(creal x, creal y, creal z, const uint popID) const {
 
     Real mass = getObjectWrapper().particleSpecies[popID].mass;
     Real mu0 = physicalconstants::MU_0;
-    const DiffusionshockSpeciesParameters& sP = this->speciesParams[popID];
+    const DiffusionShockSpeciesParameters& sP = this->speciesParams[popID];
 
     // Interpolate all values between upstream and downstream
     Real DENSITY = interpolate(sP.DENSITYu,sP.DENSITYd, x);
@@ -172,7 +172,7 @@ namespace projects {
     return retval;
   }
 
-  Real Diffusionshock::getDistribValue(creal& x, creal& y, creal& z, 
+  Real DiffusionShock::getDistribValue(creal& x, creal& y, creal& z, 
                                        creal& vx, creal& vy, creal& vz, 
                                        creal& dvx, creal& dvy, creal& dvz,
                                        const uint popID) const {
@@ -181,7 +181,7 @@ namespace projects {
     Real KB = physicalconstants::K_B;
     Real mu0 = physicalconstants::MU_0;
     Real adiab = 5./3.;
-    const DiffusionshockSpeciesParameters& sP = this->speciesParams[popID];
+    const DiffusionShockSpeciesParameters& sP = this->speciesParams[popID];
 
     // Special case: distribution parabolic in mu
     if (sP.mushape_maxv>std::numeric_limits<double>::min()) {
@@ -213,9 +213,9 @@ namespace projects {
     return result;
   }
 
-  Real Diffusionshock::calcPhaseSpaceDensity(creal& x, creal& y, creal& z, creal& dx, creal& dy, creal& dz, creal& vx, creal& vy, creal& vz, creal& dvx, creal& dvy, creal& dvz, const uint popID) const {
+  Real DiffusionShock::calcPhaseSpaceDensity(creal& x, creal& y, creal& z, creal& dx, creal& dy, creal& dz, creal& vx, creal& vy, creal& vz, creal& dvx, creal& dvy, creal& dvz, const uint popID) const {
 
-    const DiffusionshockSpeciesParameters& sP = this->speciesParams[popID];
+    const DiffusionShockSpeciesParameters& sP = this->speciesParams[popID];
     Real result = 0.0;
     if((sP.nSpaceSamples > 1) && (sP.nVelocitySamples > 1)) {
       creal d_x = dx / (sP.nSpaceSamples-1);
@@ -251,9 +251,9 @@ namespace projects {
     }
   }
   
-  void Diffusionshock::calcCellParameters(spatial_cell::SpatialCell* cell, creal& t) { }
+  void DiffusionShock::calcCellParameters(spatial_cell::SpatialCell* cell, creal& t) { }
 
-  Real Diffusionshock::interpolate(Real upstream, Real downstream, Real x) const {
+  Real DiffusionShock::interpolate(Real upstream, Real downstream, Real x) const {
     Real coord = 0.5 + x/this->Shockwidth; //Now shock will be from 0 to 1
     //x /= 0.5 * this->Shockwidth;
     Real a = 0.0;
@@ -267,7 +267,7 @@ namespace projects {
     return a;
   }
 
-  void Diffusionshock::setProjectBField(
+  void DiffusionShock::setProjectBField(
      FsGrid< std::array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH> & perBGrid,
      FsGrid< std::array<Real, fsgrids::bgbfield::N_BGB>, FS_STENCIL_WIDTH> & BgBGrid,
      FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid
@@ -297,7 +297,7 @@ namespace projects {
    }
 
 
-   bool Diffusionshock::refineSpatialCells( dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid ) const {
+   bool DiffusionShock::refineSpatialCells( dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid ) const {
  
      int myRank;       
      MPI_Comm_rank(MPI_COMM_WORLD,&myRank);

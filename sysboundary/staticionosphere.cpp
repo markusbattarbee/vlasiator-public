@@ -222,6 +222,14 @@ namespace SBC {
       
    }
 
+   void StaticIonosphere::fieldSolverBoundaryCondMagneticFieldProjection(
+      FsGrid< array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH> & bGrid,
+      FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid,
+      cint i,
+      cint j,
+      cint k
+   ) {
+   }
    void StaticIonosphere::fieldSolverBoundaryCondElectricField(
       FsGrid< std::array<Real, fsgrids::efield::N_EFIELD>, 2> & EGrid,
       cint i,

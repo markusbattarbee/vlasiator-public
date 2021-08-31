@@ -213,7 +213,14 @@ namespace SBC {
    ) {
       return bGrid.get(i,j,k)->at(fsgrids::bfield::PERBX+component);
    }
-
+   void Static::fieldSolverBoundaryCondMagneticFieldProjection(
+      FsGrid< array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH> & bGrid,
+      FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid,
+      cint i,
+      cint j,
+      cint k
+   ) {
+   }
    void Static::fieldSolverBoundaryCondElectricField(
       FsGrid< std::array<Real, fsgrids::efield::N_EFIELD>, 2> & EGrid,
       cint i,
