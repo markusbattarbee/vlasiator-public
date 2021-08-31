@@ -40,6 +40,15 @@ LDFLAGS = -lrt
 #LDFLAGS = -qopenmp -lifcore -liomp5 -pthread -lboost_program_options -lzoltan -lvlsv -lphiprof -ljemalloc 
 LIB_MPI = -lgomp 
 
+# BOOST_VERSION = current trilinos version
+# ZOLTAN_VERSION = current trilinos verson
+#
+#======== Libraries ===========
+
+MPT_VERSION = 3.1.6
+JEMALLOC_VERSION = 5.2.1
+LIBRARY_PREFIX = /projappl/project_2002873/vlasiatorlib/
+
 #======== PAPI ==========
 #Add PAPI_MEM define to use papi to report memory consumption?
 CXXFLAGS +=  -DPAPI_MEM
