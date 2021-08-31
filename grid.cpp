@@ -134,8 +134,8 @@ void initializeGrids(
    /* Increase neighborhood so first remote cells can also be translated if
       P::vlasovSolverLocalTranslate is active. Increases the neighborhood in either case
       in order to allow comparison between versions. If AMR is active, needs another cell added as well. */
-   neighborhood_size++;
-   if (P::amrMaxSpatialRefLevel > 0) neighborhood_size++;
+   // neighborhood_size++;
+   // if (P::amrMaxSpatialRefLevel > 0) neighborhood_size++;
    globalflags::AMRstencilWidth = neighborhood_size;
 
    const std::array<uint64_t, 3> grid_length = {{P::xcells_ini, P::ycells_ini, P::zcells_ini}};
@@ -997,7 +997,7 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    // In spatial AMR using DCCRG, the neighbors are considered relative to a given cell's size.
    // To get two coarse neighbors from a fine cell at interfaces, the stencil size needs to be increased by one.
    int addStencilDepth = 0;
-   if (P::vlasovSolverLocalTranslate) addStencilDepth++; // Extra cell for ghost translation
+   //if (P::vlasovSolverLocalTranslate) addStencilDepth++; // Extra cell for ghost translation
    if (P::amrMaxSpatialRefLevel > 0) {
       switch (VLASOV_STENCIL_WIDTH) {
 	 case 1:
@@ -1015,7 +1015,7 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
          default:
             std::cerr<<"Warning: unrecognized VLASOV_STENCIL_WIDTH in grid.cpp"<<std::endl;
       }
-      if (P::vlasovSolverLocalTranslate) addStencilDepth++; // AMR addition for ghost translation
+      //if (P::vlasovSolverLocalTranslate) addStencilDepth++; // AMR addition for ghost translation
    }
 
    /*stencils for semilagrangian propagators*/

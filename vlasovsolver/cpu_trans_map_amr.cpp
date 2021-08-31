@@ -284,7 +284,7 @@ void findNeighborhoodCells(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
    foundCells.assign(foundSet.begin(), foundSet.end());
 }
 
-void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+void prepareLocalTranslationCellListsFull(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                       const vector<CellID>& localPropagatedCells) {
 
    // Also performs AMR communication flag setting in a second loop
@@ -445,6 +445,209 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                   if (!do_translate_cell(ccell) && (k==foundCells_x.size()-1) && (j==foundCells_y.size()-1) && (l==foundCells_z.size()-1)) {
                      std::cerr<<c<<" nx "<<nx<<" ny "<<ny<<" nz "<<nz<<" i "<<i<<" j "<<j<<" k "<<k<<" l "<<l<<std::endl;
                   }
+               }
+            }
+         }
+      }
+     flagSetting:
+      ccell->SpatialCell::parameters[CellParams::AMR_TRANSLATE_COMM_X] = transferflag;
+   } // end loop over local cells
+
+   LocalTranslate_active_x.assign(LocalSet_x.begin(), LocalSet_x.end());
+   LocalTranslate_active_y.assign(LocalSet_y.begin(), LocalSet_y.end());
+   LocalTranslate_active_z.assign(LocalSet_z.begin(), LocalSet_z.end());
+   LocalTranslate_sources_x.assign(SourceSet_x.begin(), SourceSet_x.end());
+   LocalTranslate_sources_y.assign(SourceSet_y.begin(), SourceSet_y.end());
+   LocalTranslate_sources_z.assign(SourceSet_z.begin(), SourceSet_z.end());
+
+   return;
+}
+
+void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+                                      const vector<CellID>& localPropagatedCells) {
+   // This version only uses active cells as sources of other active cells
+   // Also performs AMR communication flag setting in a second loop
+
+   // return if there's no cells to start with
+   if(localPropagatedCells.size() == 0) {
+      std::cerr<<"No cells!"<<std::endl;
+      return;
+   }
+
+   // Clear existing lists
+   LocalTranslate_sources_x.clear();
+   LocalTranslate_sources_y.clear();
+   LocalTranslate_sources_z.clear();
+   LocalTranslate_active_x.clear();
+   LocalTranslate_active_y.clear();
+   LocalTranslate_active_z.clear();
+   LocalSet_x.clear();
+   LocalSet_y.clear();
+   LocalSet_z.clear();
+   std::unordered_set<CellID> SourceSet_x,SourceSet_y,SourceSet_z;
+   std::vector<CellID> foundCells_x, foundCells_y, foundCells_z;
+
+   // Translation order (dimensions) is 1: z 2: x 3: y
+   // Prepare in reverse order
+   // These neighborhoods now include the AMR addition beyond the regular vlasov stencil
+
+   // Done only at LB so not threaded for now
+   for (uint i=0; i<localPropagatedCells.size(); i++) {
+
+      CellID c = localPropagatedCells[i];
+      SpatialCell *ccell = mpiGrid[c];
+      if (!ccell) continue;
+
+      // Is the cell translated?
+      if (!do_translate_cell(ccell)) continue;
+      
+      LocalSet_x.insert(c);
+      LocalSet_y.insert(c);
+      LocalSet_z.insert(c);
+      SourceSet_x.insert(c);
+      SourceSet_y.insert(c);
+      SourceSet_z.insert(c);
+
+      // First y-translation source
+      findNeighborhoodCells(mpiGrid, c, 1, VLASOV_STENCIL_WIDTH+1, foundCells_y);
+      for (uint j=0; j<foundCells_y.size(); j++) {
+         CellID ny = foundCells_y[j];
+         SpatialCell *nycell = mpiGrid[ny];
+         if (!nycell) continue;
+         SourceSet_y.insert(ny);
+      }
+      // Then y-translation active
+      findNeighborhoodCells(mpiGrid, c, 1, 1, foundCells_y);
+      foundCells_y.push_back(c); // add self for iterative search
+      for (uint j=0; j<foundCells_y.size(); j++) {
+         CellID ny = foundCells_y[j];
+         SpatialCell *nycell = mpiGrid[ny];
+         if (!nycell) continue;
+         // Is the cell translated?
+         if (!do_translate_cell(nycell)) continue;
+         if (mpiGrid.is_local(ny) && ny!=c) continue;
+         LocalSet_y.insert(ny);
+         /** Now use y-translation source cells as starting points
+             and evaluate x-direction
+         */
+         // First x-translation source
+         findNeighborhoodCells(mpiGrid, ny, 0, VLASOV_STENCIL_WIDTH+1, foundCells_x);
+         for (uint k=0; k<foundCells_x.size(); k++) {
+            CellID nx = foundCells_x[k];
+            SpatialCell *nxcell = mpiGrid[nx];
+            if (!nxcell) continue;
+            SourceSet_x.insert(nx);
+         }
+         // Then x-translation active
+         findNeighborhoodCells(mpiGrid, ny, 0, 1, foundCells_x);
+         foundCells_x.push_back(ny); // add self for iterative search
+         for (uint k=0; k<foundCells_x.size(); k++) {
+            CellID nx = foundCells_x[k];
+            SpatialCell *nxcell = mpiGrid[nx];
+            if (!nxcell) continue;
+            // Is the cell translated?
+            if (!do_translate_cell(nxcell)) continue;
+            LocalSet_x.insert(nx);
+            if (mpiGrid.is_local(nx) && nx!=c) continue;
+             /** Now use x-translation source cells as starting points
+                and evaluate z-direction
+            */
+            // First z-translation sources
+            findNeighborhoodCells(mpiGrid, nx, 2, VLASOV_STENCIL_WIDTH+1, foundCells_z);
+            for (uint l=0; l<foundCells_z.size(); l++) {
+               CellID nz = foundCells_z[l];
+               SpatialCell *nzcell = mpiGrid[nz];
+               if (!nzcell) continue;
+               SourceSet_z.insert(nz);
+            }
+            // Then z-translation active
+            findNeighborhoodCells(mpiGrid, nx, 2, 1, foundCells_z);
+            foundCells_z.push_back(nx); // add self for iterative search
+            for (uint l=0; l<foundCells_z.size(); l++) {
+               CellID nz = foundCells_z[l];
+               SpatialCell *nzcell = mpiGrid[nz];
+               if (!nzcell) continue;
+               if (do_translate_cell(nzcell)) LocalSet_z.insert(nz);               
+            }
+         }
+      }
+   } // end loop over local cells
+
+   // Now set flags. We search for remote cells which need data from this cell, so we do the search
+   // in the reverse coordinate direction (1: z 2: x 3: y)
+   for (uint i=0; i<localPropagatedCells.size(); i++) {
+      CellID c = localPropagatedCells[i];
+      SpatialCell *ccell = mpiGrid[c];
+      if (!ccell) continue;
+
+      // Init: set the X-communication flag to false
+      bool transferflag=false;
+ 
+      // First z-translation source
+      findNeighborhoodCells(mpiGrid, c, 2, VLASOV_STENCIL_WIDTH+1, foundCells_z);
+      for (uint l=0; l<foundCells_z.size(); l++) {
+         CellID nz = foundCells_z[l];
+         SpatialCell *nzcell = mpiGrid[nz];
+         if (!nzcell) continue;
+         //if (!do_translate_cell(nzcell) && nz != c) continue;
+         if (!mpiGrid.is_local(nz) && do_translate_cell(nzcell)) {
+            transferflag = true;
+            goto flagSetting;
+         }
+      }
+
+      // Now x-directional source
+      findNeighborhoodCells(mpiGrid, c, 0, VLASOV_STENCIL_WIDTH+1, foundCells_x);
+      for (uint k=0; k<foundCells_x.size(); k++) {
+         CellID nx = foundCells_x[k];
+         SpatialCell *nxcell = mpiGrid[nx];
+         if (!nxcell) continue;
+         if (!mpiGrid.is_local(nx) && do_translate_cell(nxcell)) {
+            transferflag = true;
+            goto flagSetting;
+         }
+         // And continue to z pm 1
+         findNeighborhoodCells(mpiGrid, nx, 2, 1, foundCells_z);
+         for (uint l=0; l<foundCells_z.size(); l++) {
+            CellID nz = foundCells_z[l];
+            SpatialCell *nzcell = mpiGrid[nz];
+            if (!nzcell) continue;
+            if (!mpiGrid.is_local(nz) && do_translate_cell(nzcell)) {
+               transferflag = true;
+               goto flagSetting;
+            }
+         }
+      }
+
+      // Now y-directional source
+      findNeighborhoodCells(mpiGrid, c, 1, VLASOV_STENCIL_WIDTH+1, foundCells_y);
+      for (uint j=0; j<foundCells_y.size(); j++) {
+         CellID ny = foundCells_y[j];
+         SpatialCell *nycell = mpiGrid[ny];
+         if (!nycell) continue;
+         if (!mpiGrid.is_local(ny) && do_translate_cell(nycell)) {
+            transferflag = true;
+            goto flagSetting;
+         }
+         // continue to x pm 1
+         findNeighborhoodCells(mpiGrid, ny, 0, 1, foundCells_x);
+         for (uint k=0; k<foundCells_x.size(); k++) {
+            CellID nx = foundCells_x[k];
+            SpatialCell *nxcell = mpiGrid[nx];
+            if (!nxcell) continue;
+            if (!mpiGrid.is_local(nx) && do_translate_cell(nxcell)) {
+               transferflag = true;
+               goto flagSetting;
+            }
+            // And continue to z pm 1
+            findNeighborhoodCells(mpiGrid, nx, 2, 1, foundCells_z);
+            for (uint l=0; l<foundCells_z.size(); l++) {
+               CellID nz = foundCells_z[l];
+               SpatialCell *nzcell = mpiGrid[nz];
+               if (!nzcell) continue;
+               if (!mpiGrid.is_local(nz) && do_translate_cell(nzcell)) {
+                  transferflag = true;
+                  goto flagSetting;
                }
             }
          }
