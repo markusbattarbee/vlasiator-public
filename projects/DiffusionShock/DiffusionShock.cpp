@@ -42,6 +42,8 @@ Previous development version name was UtuShock
 using namespace std;
 using namespace spatial_cell;
 
+Real projects::DiffusionShock::rndVel[3];
+
 namespace projects {
   DiffusionShock::DiffusionShock(): TriAxisSearch() { }
   DiffusionShock::~DiffusionShock() { }
@@ -73,14 +75,19 @@ namespace projects {
        RP::add(pop + "_DiffusionShock.VY0u", "Upstream Bulk velocity in y", 0.0);
        RP::add(pop + "_DiffusionShock.VZ0u", "Upstream Bulk velocuty in z", 0.0);
        RP::add(pop + "_DiffusionShock.rhou", "Upstream Number density (m^-3)", 1.0e7);
-       RP::add(pop + "_DiffusionShock.Temperatureu", "Upstream Temperature (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.Temperaturexu", "Upstream Temperature X (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.Temperatureyu", "Upstream Temperature Y (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.Temperaturezu", "Upstream Temperature Z (K)", 2.0e6);
 
        RP::add(pop + "_DiffusionShock.VX0d", "Downstream Bulk velocity in x", 0.0);
        RP::add(pop + "_DiffusionShock.VY0d", "Downstream Bulk velocity in y", 0.0);
        RP::add(pop + "_DiffusionShock.VZ0d", "Downstream Bulk velocuty in z", 0.0);
        RP::add(pop + "_DiffusionShock.rhod", "Downstream Number density (m^-3)", 1.0e7);
-       RP::add(pop + "_DiffusionShock.Temperatured", "Downstream Temperature (K)", 2.0e6);
-
+       RP::add(pop + "_DiffusionShock.Temperaturexd", "Downstream Temperature X (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.Temperatureyd", "Downstream Temperature Y (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.Temperaturezd", "Downstream Temperature Z (K)", 2.0e6);
+       RP::add(pop + "_DiffusionShock.velocityPertAbsAmp", "Velocity perturbation amplitude (m/s)", 0.0e6);
+   
        RP::add(pop + "_DiffusionShock.nSpaceSamples", "Number of sampling points per spatial dimension", 2);
        RP::add(pop + "_DiffusionShock.nVelocitySamples", "Number of sampling points per velocity dimension", 5);
        RP::add(pop + "_DiffusionShock.maxwCutoff", "Cutoff for the maxwellian distribution", 1e-12);
@@ -123,13 +130,18 @@ namespace projects {
        RP::get(pop + "_DiffusionShock.VY0u", sP.V0u[1]);
        RP::get(pop + "_DiffusionShock.VZ0u", sP.V0u[2]);
        RP::get(pop + "_DiffusionShock.rhou", sP.DENSITYu);
-       RP::get(pop + "_DiffusionShock.Temperatureu", sP.TEMPERATUREu);
+       RP::get(pop + "_DiffusionShock.Temperaturexu", sP.TEMPERATURExu);
+       RP::get(pop + "_DiffusionShock.Temperatureyu", sP.TEMPERATUREyu);
+       RP::get(pop + "_DiffusionShock.Temperaturezu", sP.TEMPERATUREzu);
 
        RP::get(pop + "_DiffusionShock.VX0d", sP.V0d[0]);
        RP::get(pop + "_DiffusionShock.VY0d", sP.V0d[1]);
        RP::get(pop + "_DiffusionShock.VZ0d", sP.V0d[2]);
        RP::get(pop + "_DiffusionShock.rhod", sP.DENSITYd);
-       RP::get(pop + "_DiffusionShock.Temperatured", sP.TEMPERATUREd);
+       RP::get(pop + "_DiffusionShock.Temperaturexd", sP.TEMPERATURExd);
+       RP::get(pop + "_DiffusionShock.Temperatureyd", sP.TEMPERATUREyd);
+       RP::get(pop + "_DiffusionShock.Temperaturezd", sP.TEMPERATUREzd);
+       RP::get(pop + "_DiffusionShock.velocityPertAbsAmp", sP.VELOCITYPERTAMP);
 
        RP::get(pop + "_DiffusionShock.nSpaceSamples", sP.nSpaceSamples);
        RP::get(pop + "_DiffusionShock.nVelocitySamples", sP.nVelocitySamples);
@@ -190,10 +202,19 @@ namespace projects {
        if (v>sP.mushape_maxv) return 0.0;
        // find mu
        // For now, assume B=Bx
-       //Real mu = vx/sqrt(vy*vy+vz*vz);
+       //Real mu = vx/sqrt(vx*vx+vy*vy+vz*vz);
+
        // For now, assume B=Bz
-       Real mu = vz/sqrt(vy*vy+vx*vx);
-       return sP.mushape_A*(mu+1.)*(mu+1.) + sP.mushape_B;
+       Real mu = vz/sqrt(vx*vx+vy*vy+vz*vz);
+       // Allow flipping of distribution with B<0
+       if (sP.mushape_B < 0) {
+          mu = -mu;
+       }
+       
+       //Real shapefunc = sP.mushape_A*(mu*mu+1.) + sP.mushape_B;
+       Real shapefunc = sP.mushape_A*(mu+1)*(mu+1.) + abs(sP.mushape_B);
+
+       return shapefunc;
     }
 
     // Interpolate between upstream and downstream
@@ -201,17 +222,24 @@ namespace projects {
     if (DENSITY < 1e-20) {
       std::cout<<"density too low! "<<DENSITY<<" x "<<x<<" y "<<y<<" z "<<z<<std::endl;
     }
-    Real TEMPERATURE = interpolate(sP.TEMPERATUREu,sP.TEMPERATUREd, x);
+    Real TEMPERATUREx = interpolate(sP.TEMPERATURExu,sP.TEMPERATURExd, x);
+    Real TEMPERATUREy = interpolate(sP.TEMPERATUREyu,sP.TEMPERATUREyd, x);
+    Real TEMPERATUREz = interpolate(sP.TEMPERATUREzu,sP.TEMPERATUREzd, x);
     Real hereVX = interpolate(sP.V0u[0],sP.V0d[0], x);
     Real hereVY = interpolate(sP.V0u[1],sP.V0d[1], x);
     Real hereVZ = interpolate(sP.V0u[2],sP.V0d[2], x);
-    std::array<Real, 3> pertV0 {{hereVX, hereVY, hereVZ}};
+
+    std::array<Real, 3> pertV0 {{hereVX - sP.VELOCITYPERTAMP * (0.5 - rndVel[0] ), hereVY - sP.VELOCITYPERTAMP * (0.5 - rndVel[1] ), hereVZ - sP.VELOCITYPERTAMP * (0.5 - rndVel[2] )}};
 
     Real result = 0.0;
 
-    result = DENSITY * std::pow(mass / (2.0 * M_PI * KB * TEMPERATURE), 1.5) *
-      exp(- mass * ((vx-pertV0[0])*(vx-pertV0[0]) + (vy-pertV0[1])*(vy-pertV0[1]) + (vz-pertV0[2])*(vz-pertV0[2])) / (2.0 * KB * TEMPERATURE));
+//    result = DENSITY * std::pow(mass / (2.0 * M_PI * KB * TEMPERATURE), 1.5) *
+//      exp(- mass * ((vx-pertV0[0])*(vx-pertV0[0]) + (vy-pertV0[1])*(vy-pertV0[1]) + (vz-pertV0[2])*(vz-pertV0[2])) / (2.0 * KB * TEMPERATURE));
 
+    result = DENSITY * std::pow(mass / (2.0 * M_PI * KB), 1.5) /
+       ( sqrt(TEMPERATUREx) * sqrt(TEMPERATUREy) * sqrt(TEMPERATUREz) ) *
+       exp((- mass / (2.0 * KB))* ( (vx-pertV0[0])*(vx-pertV0[0])/TEMPERATUREx + (vy-pertV0[1])*(vy-pertV0[1])/TEMPERATUREy + (vz-pertV0[2])*(vz-pertV0[2])/TEMPERATUREz ));
+    
     return result;
   }
 
@@ -253,7 +281,13 @@ namespace projects {
     }
   }
   
-  void DiffusionShock::calcCellParameters(spatial_cell::SpatialCell* cell, creal& t) { }
+  void DiffusionShock::calcCellParameters(spatial_cell::SpatialCell* cell, creal& t) {
+     Real* cellParams = cell->get_cell_parameters();
+     setRandomSeed(cellParams[CellParams::CELLID]);
+     rndVel[0]=getRandomNumber();
+     rndVel[1]=getRandomNumber();
+     rndVel[2]=getRandomNumber();
+  }
 
   Real DiffusionShock::interpolate(Real upstream, Real downstream, Real x) const {
     Real coord = 0.5 + x/this->Shockwidth; //Now shock will be from 0 to 1

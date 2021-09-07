@@ -33,11 +33,16 @@ namespace projects {
    struct DiffusionShockSpeciesParameters {
       Real V0u[3];
       Real DENSITYu;
-      Real TEMPERATUREu;
+      Real TEMPERATURExu;
+      Real TEMPERATUREyu;
+      Real TEMPERATUREzu;
 
       Real V0d[3];
       Real DENSITYd;
-      Real TEMPERATUREd;
+      Real TEMPERATURExd;
+      Real TEMPERATUREyd;
+      Real TEMPERATUREzd;
+      Real VELOCITYPERTAMP;
 
       Real mushape_minv,mushape_maxv;
       Real mushape_A,mushape_B;
@@ -106,6 +111,10 @@ namespace projects {
 	 Real AMR_L4width;
 
          std::vector<DiffusionShockSpeciesParameters> speciesParams;
+
+         uint seed;
+         static Real rndVel[3];
+#pragma omp threadprivate(rndVel)
 
    } ; //class DiffusionShock
 } // namespace projects
