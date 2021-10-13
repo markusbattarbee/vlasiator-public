@@ -4,7 +4,7 @@
 #include "../vlasovsolver/vec.h"
 #include "../definitions.h"
 
-//#include "device_launch_parameters.h"
+#include "device_launch_parameters.h"
 #include "hip/hip_runtime.h"
 #include "hip/hip_runtime.h"
 
@@ -84,9 +84,9 @@ __global__ void acceleration_1
 )
 {
   int index = threadIdx.x + blockIdx.x*blockDim.x;
-  if(index == 0)
+  if(index != -100)
   {
-    //printf("CUDA 1\n");
+    printf("CUDA 1\n");
     for( uint column=0; column < totalColumns; column++)
     {
       //printf("CUDA 2\n");

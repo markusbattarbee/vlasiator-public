@@ -23,9 +23,9 @@
 #define VECTORCLASS_PORTABLE_H
 #include "../vlasovsolver_cuda/cuda_header.cuh"
 
-#include "device_launch_parameters.h"
-#include "cuda.h"
-#include "cuda_runtime.h"
+//#include "device_launch_parameters.h"
+//#include "cuda.h"
+//#include "cuda_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
