@@ -1,12 +1,11 @@
-#include "hip/hip_runtime.h"
 #include "cuda_header.cuh"
 #include "open_acc_map_h.cuh"
 #include "../vlasovsolver/vec.h"
 #include "../definitions.h"
 
-//#include "device_launch_parameters.h"
-#include "hip/hip_runtime.h"
-#include "hip/hip_runtime.h"
+
+#include "cuda.h"
+#include "cuda_runtime.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,11 +18,11 @@
 
 #define i_pcolumnv_cuda(j, k, k_block, num_k_blocks) ( ((j) / ( VECL / WID)) * WID * ( num_k_blocks + 2) + (k) + ( k_block + 1 ) * WID )
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ));
-static void HandleError( hipError_t err, const char *file, int line )
+static void HandleError( cudaError_t err, const char *file, int line )
 {
-    if (err != hipSuccess)
+    if (err != cudaSuccess)
     {
-        printf( "%s in %s at line %d\n", hipGetErrorString( err ), file, line );
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ), file, line );
         exit( EXIT_FAILURE );
     }
 }
@@ -85,14 +84,8 @@ __global__ void acceleration_1
 {
   int index = threadIdx.x + blockIdx.x*blockDim.x;
   if(index < totalColumns ){
-  // if(index == 0 ){
+      int column = index;
 
-    int column = index;
-    // printf("index=%i, totColumns=%i\n",index,totalColumns);
-    // //printf("CUDA 1 Kernel\n");
-    // for( uint column=0; column < totalColumns; column++)
-    // {
-      //printf("CUDA 2\n");
       // i,j,k are relative to the order in which we copied data to the values array.
       // After this point in the k,j,i loops there should be no branches based on dimensions
       // Note that the i dimension is vectorized, and thus there are no loops over i
@@ -324,7 +317,6 @@ __global__ void acceleration_1
              } // for loop over target k-indices of current source block
           } // for-loop over source blocks
        } //for loop over j index
-    // } //for loop over columns
   }
 }
 
@@ -359,31 +351,33 @@ Realf* acceleration_1_wrapper
     acc_semilag_flag = 2;
   #endif
 
-
-  
-  // hipSetDevice(myRank);
+  /*We used  MPI rank ID to set different devices and use multiple GPUs. 
+  This seeemed to work fine although we underutilize the GPUs (see the hackathon presentation at LUMI).
+  */
+  cudaSetDevice(myRank);
 
 
   double *dev_blockData;
-  HANDLE_ERROR( hipMalloc((void**)&dev_blockData, bdsw3*sizeof(double)) );
-  HANDLE_ERROR( hipMemcpy(dev_blockData, blockData, bdsw3*sizeof(double), hipMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMalloc((void**)&dev_blockData, bdsw3*sizeof(double)) );
+  HANDLE_ERROR( cudaMemcpy(dev_blockData, blockData, bdsw3*sizeof(double), cudaMemcpyHostToDevice) );
 
   Column *dev_columns;
-  HANDLE_ERROR( hipMalloc((void**)&dev_columns, totalColumns*sizeof(Column)) );
-  HANDLE_ERROR( hipMemcpy(dev_columns, columns, totalColumns*sizeof(Column), hipMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMalloc((void**)&dev_columns, totalColumns*sizeof(Column)) );
+  HANDLE_ERROR( cudaMemcpy(dev_columns, columns, totalColumns*sizeof(Column), cudaMemcpyHostToDevice) );
 
   int *dev_cell_indices_to_id;
-  HANDLE_ERROR( hipMalloc((void**)&dev_cell_indices_to_id, 3*sizeof(int)) );
-  HANDLE_ERROR( hipMemcpy(dev_cell_indices_to_id, cell_indices_to_id, 3*sizeof(int), hipMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMalloc((void**)&dev_cell_indices_to_id, 3*sizeof(int)) );
+  HANDLE_ERROR( cudaMemcpy(dev_cell_indices_to_id, cell_indices_to_id, 3*sizeof(int), cudaMemcpyHostToDevice) );
 
   Vec *dev_values;
-  HANDLE_ERROR( hipMalloc((void**)&dev_values, valuesSizeRequired*sizeof(Vec)) );
-  HANDLE_ERROR( hipMemcpy(dev_values, values, valuesSizeRequired*sizeof(Vec), hipMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMalloc((void**)&dev_values, valuesSizeRequired*sizeof(Vec)) );
+  HANDLE_ERROR( cudaMemcpy(dev_values, values, valuesSizeRequired*sizeof(Vec), cudaMemcpyHostToDevice) );
 
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
 
-  hipStream_t stream;
-  hipStreamCreate(&stream);
-  hipLaunchKernelGGL(acceleration_1, BLOCKS, THREADS, 0, stream, 
+  acceleration_1<<<BLOCKS, THREADS,0,stream>>>
+  (
     dev_blockData,
     dev_columns,
     dev_values,
@@ -402,17 +396,23 @@ Realf* acceleration_1_wrapper
   );
 
 
+  /*
+  Our kernels are too small and always run serially even though we launch them from 
+  different OpenMP tasks. We tried this based  (pragma barrier) on the following issue 
+  https://stackoverflow.com/questions/22539997/multiple-host-threads-launch-cuda-kernels-together
+  and worked. This is ofcourse not a solution but we do document it here.
+  */
   #pragma omp barrier
-  hipDeviceSynchronize();
-  HANDLE_ERROR( hipMemcpy(blockData, dev_blockData, bdsw3*sizeof(double), hipMemcpyDeviceToHost) );
 
-  HANDLE_ERROR( hipFree(dev_blockData) );
-  HANDLE_ERROR( hipFree(dev_cell_indices_to_id) );
-  HANDLE_ERROR( hipFree(dev_columns) );
-  HANDLE_ERROR( hipFree(dev_values) );
 
-  hipStreamDestroy(stream);
+  cudaDeviceSynchronize();
+  HANDLE_ERROR( cudaMemcpy(blockData, dev_blockData, bdsw3*sizeof(double), cudaMemcpyDeviceToHost) );
 
+  HANDLE_ERROR( cudaFree(dev_blockData) );
+  HANDLE_ERROR( cudaFree(dev_cell_indices_to_id) );
+  HANDLE_ERROR( cudaFree(dev_columns) );
+  HANDLE_ERROR( cudaFree(dev_values) );
+  cudaStreamDestroy(stream);
 
   return blockData;
 }
