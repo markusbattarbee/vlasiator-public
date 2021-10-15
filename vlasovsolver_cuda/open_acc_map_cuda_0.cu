@@ -4,7 +4,7 @@
 #include "../vlasovsolver/vec.h"
 #include "../definitions.h"
 
-#include "device_launch_parameters.h"
+//#include "device_launch_parameters.h"
 #include "hip/hip_runtime.h"
 #include "hip/hip_runtime.h"
 
@@ -84,14 +84,12 @@ __global__ void acceleration_1
 )
 {
   int index = threadIdx.x + blockIdx.x*blockDim.x;
-  // printf("Index %d out of Colums %d",index,totalColumns);
-  //if (index < totalColumns){
-    //int column = index;
-    
-     if(index =<  totalColumns)
-    // {
-    //  for( uint column=0; column < totalColumns; column++)
-    // {
+  if(index == 0)
+  {
+    //printf("CUDA 1 Kernel\n");
+    for( uint column=0; column < totalColumns; column++)
+    {
+      //printf("CUDA 2\n");
       // i,j,k are relative to the order in which we copied data to the values array.
       // After this point in the k,j,i loops there should be no branches based on dimensions
       // Note that the i dimension is vectorized, and thus there are no loops over i
@@ -323,7 +321,7 @@ __global__ void acceleration_1
              } // for loop over target k-indices of current source block
           } // for-loop over source blocks
        } //for loop over j index
-     } //for loop over columns
+    } //for loop over columns
   }
 }
 
@@ -373,7 +371,7 @@ Realf* acceleration_1_wrapper
   HANDLE_ERROR( hipMalloc((void**)&dev_values, valuesSizeRequired*sizeof(Vec)) );
   HANDLE_ERROR( hipMemcpy(dev_values, values, valuesSizeRequired*sizeof(Vec), hipMemcpyHostToDevice) );
 
-  hipLaunchKernelGGL(acceleration_1, BLOCKS, THREADS, 0, 0,  
+  hipLaunchKernelGGL(acceleration_1, BLOCKS, THREADS, 0, 0, 
     dev_blockData,
     dev_columns,
     dev_values,

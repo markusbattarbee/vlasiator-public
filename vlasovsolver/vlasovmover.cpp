@@ -391,6 +391,7 @@ void calculateAcceleration(const uint popID,const uint globalMaxSubcycles,const 
       for (size_t c=0; c<propagatedCells.size(); ++c) {
          const CellID cellID = propagatedCells[c];
          const Real maxVdt = mpiGrid[cellID]->get_max_v_dt(popID);
+         // std::cerr<< omp_get_num_threads()<<std::endl;
 
          //compute subcycle dt. The length is maxVdt on all steps
          //except the last one. This is to keep the neighboring
@@ -409,14 +410,16 @@ void calculateAcceleration(const uint popID,const uint globalMaxSubcycles,const 
 
          // If we are the "first" thread, we get to use the accelerator.
          //bool isThreadZero = omp_get_thread_num() == 0;
-         bool isThreadZero = true;
+         // bool isThreadZero = true;
          phiprof::start("cell-semilag-acc");
-         cpu_accelerate_cell(mpiGrid[cellID],popID,map_order,order_step,subcycleDt,isThreadZero);
+         cpu_accelerate_cell(mpiGrid[cellID],popID,map_order,order_step,subcycleDt,true);
          phiprof::stop("cell-semilag-acc");
       }
       // Wait for all of the async GPU stuff to be done before continuing
       // TODO: switch CPU, GPU #ifdef #elif
-      #pragma acc wait
+      #pragma omp wait
+      // #pragma acc wait
+
    }
 
    //global adjust after each subcycle to keep number of blocks managable. Even the ones not

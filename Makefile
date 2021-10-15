@@ -37,7 +37,7 @@ COMPFLAGS += -DPROFILE
 COMPFLAGS += -DNDEBUG
 # CXXFLAGS += -DDEBUG_SOLVERS
 # CXXFLAGS += -DDEBUG_IONOSPHERE
-
+#
 #Set order of semilag solver in velocity space acceleration
 #  ACC_SEMILAG_PLM 	2nd order
 #  ACC_SEMILAG_PPM	3rd order
@@ -489,7 +489,7 @@ object_wrapper.o:  $(DEPS_COMMON) object_wrapper.h object_wrapper.cpp
 # Make executable
 vlasiator: $(OBJS) $(OBJS_FSOLVER)
 	#mpic++ ${LDFLAGS} -o ${EXE} $(OBJS) $(LIBS) $(OBJS_FSOLVER)    -lamdhip64 -L/opt/rocm/lib  -fopenmp
-	${LNK} ${LDFLAGS} -o ${EXE} $(OBJS) $(LIBS) $(OBJS_FSOLVER)    
+	${LNK} ${LDFLAGS} -o ${EXE} $(OBJS) $(LIBS) $(OBJS_FSOLVER)    -lamdhip64 -L/opt/rocm/lib  -fopenmp
 
 #/// TOOLS section/////
 

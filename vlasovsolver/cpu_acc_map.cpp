@@ -121,6 +121,10 @@ void inline swapBlockIndices(velocity_block_indices_t &blockIndices, const uint 
     Realv minValue
   )
   {
+
+   int myRank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
     //printf("STAGE 2\n");
     Realf* returned_blockData = acceleration_1_wrapper
     (
@@ -138,7 +142,8 @@ void inline swapBlockIndices(velocity_block_indices_t &blockIndices, const uint 
       v_min,
       i_dv,
       dv,
-      minValue
+      minValue,
+      myRank
     );
     return returned_blockData;
   }
@@ -454,7 +459,8 @@ bool map_1d(SpatialCell* spatial_cell,
      //in OpenAcc version following data was copied:
      //values, blockData
      //CALL CUDA FUNCTION WRAPPER START
-     //printf("STAGE 1 - GPU\n");
+   //   printf("STAGE 1 - GPU\n");
+   //   std::cerr<<totalColumns<<std::endl;
      blockData = acceleration_1_wrapperCaller
      (
        blockData,
@@ -483,7 +489,7 @@ bool map_1d(SpatialCell* spatial_cell,
    }
    else
    {
-     printf("CPU\n");
+   //   printf("CPU\n");
       // CPU version
       for(uint column=0; column < totalColumns; column++)
       {

@@ -44,10 +44,11 @@ extern Realf* acceleration_1_wrapper
   Realv v_min,
   Realv i_dv,
   Realv dv,
-  Realv minValue
+  Realv minValue,
+  int myRank
 );
 
 #define DIMS 1
-#define BLOCKS 1
-#define THREADS 1
+#define BLOCKS 512
+#define THREADS 1024 
 #define CUDASIZE 1

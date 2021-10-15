@@ -84,11 +84,14 @@ __global__ void acceleration_1
 )
 {
   int index = threadIdx.x + blockIdx.x*blockDim.x;
-  if(index == 0)
-  {
-    //printf("CUDA 1\n");
-    for( uint column=0; column < totalColumns; column++)
-    {
+  if(index < totalColumns ){
+  // if(index == 0 ){
+
+    int column = index;
+    // printf("index=%i, totColumns=%i\n",index,totalColumns);
+    // //printf("CUDA 1 Kernel\n");
+    // for( uint column=0; column < totalColumns; column++)
+    // {
       //printf("CUDA 2\n");
       // i,j,k are relative to the order in which we copied data to the values array.
       // After this point in the k,j,i loops there should be no branches based on dimensions
@@ -321,7 +324,7 @@ __global__ void acceleration_1
              } // for loop over target k-indices of current source block
           } // for-loop over source blocks
        } //for loop over j index
-    } //for loop over columns
+    // } //for loop over columns
   }
 }
 
@@ -341,7 +344,8 @@ Realf* acceleration_1_wrapper
   Realv v_min,
   Realv i_dv,
   Realv dv,
-  Realv minValue
+  Realv minValue,
+  int myRank
 )
 {
   int acc_semilag_flag = 0;
@@ -354,6 +358,11 @@ Realf* acceleration_1_wrapper
   #ifdef ACC_SEMILAG_PQM
     acc_semilag_flag = 2;
   #endif
+
+
+  
+  // hipSetDevice(myRank);
+
 
   double *dev_blockData;
   HANDLE_ERROR( hipMalloc((void**)&dev_blockData, bdsw3*sizeof(double)) );
@@ -371,7 +380,10 @@ Realf* acceleration_1_wrapper
   HANDLE_ERROR( hipMalloc((void**)&dev_values, valuesSizeRequired*sizeof(Vec)) );
   HANDLE_ERROR( hipMemcpy(dev_values, values, valuesSizeRequired*sizeof(Vec), hipMemcpyHostToDevice) );
 
-  hipLaunchKernelGGL(acceleration_1, BLOCKS, THREADS, 0, 0, 
+
+  hipStream_t stream;
+  hipStreamCreate(&stream);
+  hipLaunchKernelGGL(acceleration_1, BLOCKS, THREADS, 0, stream, 
     dev_blockData,
     dev_columns,
     dev_values,
@@ -389,6 +401,8 @@ Realf* acceleration_1_wrapper
         bdsw3
   );
 
+
+  #pragma omp barrier
   hipDeviceSynchronize();
   HANDLE_ERROR( hipMemcpy(blockData, dev_blockData, bdsw3*sizeof(double), hipMemcpyDeviceToHost) );
 
@@ -396,6 +410,9 @@ Realf* acceleration_1_wrapper
   HANDLE_ERROR( hipFree(dev_cell_indices_to_id) );
   HANDLE_ERROR( hipFree(dev_columns) );
   HANDLE_ERROR( hipFree(dev_values) );
+
+  hipStreamDestroy(stream);
+
 
   return blockData;
 }

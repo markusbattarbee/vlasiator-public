@@ -27,7 +27,6 @@
 
 using namespace spatial_cell;
 
-bool map_1d(SpatialCell* spatial_cell, const uint popID,
-            Realv intersection, Realv intersection_di, Realv intersection_dj,Realv intersection_dk,
-            const uint dimension, const bool useAccelerator) ;
+bool map_1d(SpatialCell* spatial_cell, const uint popID, Realv intersection, Realv intersection_di,
+            Realv intersection_dj, Realv intersection_dk, const uint dimension, const bool useAccelerator);
 #endif
