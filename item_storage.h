@@ -26,6 +26,7 @@
 #include <map>
 
 #include "definitions.h"
+#include <string>
 
 /** A generic storage class for storing items, such as variable values or 
  * function pointers. The storage class can store any type of item that does 
