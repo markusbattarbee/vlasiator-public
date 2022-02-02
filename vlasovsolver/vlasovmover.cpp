@@ -77,7 +77,8 @@ void calculateSpatialTranslation(
 
     int trans_timer;
     bool AMRtranslationActive = false;
-    if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
+    //if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
+
     double t1;
     
     int myRank;

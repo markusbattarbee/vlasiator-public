@@ -1652,7 +1652,7 @@ void getSeedIds(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGr
    // These neighborhoods now include the AMR addition beyond the regular vlasov stencil
    int neighborhood = getNeighborhood(dimension,VLASOV_STENCIL_WIDTH);
 
-#pragma parallel for
+#pragma omp parallel for
    for (uint i=0; i<localPropagatedCells.size(); i++) {
       CellID celli = localPropagatedCells[i];
 
@@ -2561,6 +2561,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
                   SpatialCell* targetCell = targetCells[GID];
 
                   if(targetCell) { // this check also skips sysboundary cells
+                  
                      const vmesh::LocalID blockLID = targetCell->get_velocity_block_local_id(blockGID, popID);
 
                      // Check for invalid block id
