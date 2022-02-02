@@ -55,13 +55,13 @@ creal ONE     = 1.0;
 creal TWO     = 2.0;
 creal EPSILON = 1.0e-25;
 
-/** Propagates the distribution function in spatial space. 
-    
+/** Propagates the distribution function in spatial space.
+
     Based on SLICE-3D algorithm: Zerroukat, M., and T. Allen. "A
     three‐dimensional monotone and conservative semi‐Lagrangian scheme
     (SLICE‐3D) for transport problems." Quarterly Journal of the Royal
     Meteorological Society 138.667 (2012): 1640-1651.
-  
+
  */
 void calculateSpatialTranslation(
         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
@@ -241,14 +241,14 @@ void calculateSpatialTranslation(
 }
 
 
-/** Propagates the distribution function in spatial space. 
+/** Propagates the distribution function in spatial space.
     Now does extra calculations locally without interim MPI communication.
-    
+
     Based on SLICE-3D algorithm: Zerroukat, M., and T. Allen. "A
     three‐dimensional monotone and conservative semi‐Lagrangian scheme
     (SLICE‐3D) for transport problems." Quarterly Journal of the Royal
     Meteorological Society 138.667 (2012): 1640-1651.
-  
+
  */
 void calculateSpatialLocalTranslation(
         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
@@ -266,7 +266,7 @@ void calculateSpatialLocalTranslation(
 
     int trans_timer;
     bool AMRtranslationActive = false;
-    if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
+    //if (P::amrMaxSpatialRefLevel > 0) AMRtranslationActive = true;
 
     // int myRank;
     // MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
@@ -314,7 +314,7 @@ void calculateSpatialLocalTranslation(
        if(P::amrMaxSpatialRefLevel == 0) {
           trans_map_1d(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, 1,dt,popID); // map along y//
        } else {
-          trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//      
+          trans_map_1d_amr(mpiGrid,local_propagated_cells_y, remoteTargetCellsy, nPencils, 1,dt,popID); // map along y//
        }
        phiprof::stop("compute-mapping-y");
        time += MPI_Wtime() - t1;
@@ -395,7 +395,7 @@ void calculateSpatialTranslation(
       SpatialCell::setCommunicatedSpecies(popID);
       //      std::cout << "I am at line " << __LINE__ << " of " << __FILE__ << std::endl;
       if (P::vlasovSolverLocalTranslate) {
-         // Local translation without interim communication 
+         // Local translation without interim communication
          calculateSpatialLocalTranslation(
             mpiGrid,
             local_propagated_cells_x,

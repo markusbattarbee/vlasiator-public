@@ -674,23 +674,15 @@ void Parameters::getParameters() {
    RP::get("fieldsolver.maxCFL", P::fieldSolverMaxCFL);
    RP::get("fieldsolver.minCFL", P::fieldSolverMinCFL);
    // Get Vlasov solver parameters
-<<<<<<< HEAD
-   Readparameters::get("vlasovsolver.maxSlAccelerationRotation",P::maxSlAccelerationRotation);
-   Readparameters::get("vlasovsolver.maxSlAccelerationSubcycles",P::maxSlAccelerationSubcycles);
-   Readparameters::get("vlasovsolver.maxCFL",P::vlasovSolverMaxCFL);
-   Readparameters::get("vlasovsolver.minCFL",P::vlasovSolverMinCFL);
-   Readparameters::get("vlasovsolver.LocalTranslate",P::vlasovSolverLocalTranslate);
-   if ((myRank == MASTER_RANK)&&(P::vlasovSolverLocalTranslate==true)) {
-      printf("Performing all spatial translation locally using ghost cell information\n");
-   }
-   
-=======
    RP::get("vlasovsolver.maxSlAccelerationRotation", P::maxSlAccelerationRotation);
    RP::get("vlasovsolver.maxSlAccelerationSubcycles", P::maxSlAccelerationSubcycles);
    RP::get("vlasovsolver.maxCFL", P::vlasovSolverMaxCFL);
    RP::get("vlasovsolver.minCFL", P::vlasovSolverMinCFL);
+   RP::get("vlasovsolver.LocalTranslate",P::vlasovSolverLocalTranslate);
+   if ((myRank == MASTER_RANK)&&(P::vlasovSolverLocalTranslate==true)) {
+      printf("Performing all spatial translation locally using ghost cell information\n");
+   }
 
->>>>>>> dev
    // Get load balance parameters
    RP::get("loadBalance.algorithm", P::loadBalanceAlgorithm);
    RP::get("loadBalance.tolerance", P::loadBalanceTolerance);

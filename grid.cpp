@@ -131,11 +131,6 @@ void initializeGrids(
             std::cerr<<"Warning: unrecognized VLASOV_STENCIL_WIDTH in grid.cpp"<<std::endl;
       }
    }
-   /* Increase neighborhood so first remote cells can also be translated if
-      P::vlasovSolverLocalTranslate is active. Increases the neighborhood in either case
-      in order to allow comparison between versions. If AMR is active, needs another cell added as well. */
-   // neighborhood_size++;
-   // if (P::amrMaxSpatialRefLevel > 0) neighborhood_size++;
    globalflags::AMRstencilWidth = neighborhood_size;
 
    const std::array<uint64_t, 3> grid_length = {{P::xcells_ini, P::ycells_ini, P::zcells_ini}};
@@ -175,7 +170,7 @@ void initializeGrids(
    recalculateLocalCellsCache();
 
    if((P::amrMaxSpatialRefLevel > 0) && (!P::vlasovSolverLocalTranslate)) {
-      setFaceNeighborRanks( mpiGrid );
+      setFaceNeighborRanks( mpiGrid ); // Only needed for remote contribution in translation
    }
    const vector<CellID>& cells = getLocalCells();
    phiprof::stop("Initial load-balancing");
@@ -619,7 +614,7 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    // Record ranks of face neighbors
    if((P::amrMaxSpatialRefLevel > 0) && (!P::vlasovSolverLocalTranslate)) {
       phiprof::start("set face neighbor ranks");
-      setFaceNeighborRanks( mpiGrid );
+      setFaceNeighborRanks( mpiGrid ); // Only needed for remote contribution in translation
       phiprof::stop("set face neighbor ranks");
    }
 
@@ -896,24 +891,21 @@ Old cartesian translation (A = AMR extension):
     A
 -----------
 All-local translation (P = local propagation, A = AMR extension)
-Asymmetric due to translation order z->x->y
 -----------
-    AAA
-    xxx
-    xxx
-    PPP
- AxxPoPxxA
-    PPP
-    xxx
-    xxx
-    AAA
+    A
+    x
+    P
+ AxPoPxA
+    P
+    x
+    A
 -----------
 
 VLASOV_{XYZ}
 -----------
  AxxoxxA
 ----or-------
- AxxPoPxxA
+ AxPoPxA
 -----------
 
 VLASOV_TARGET_{XYZ}
@@ -943,15 +935,13 @@ FULL (Includes all possible communication)
   xxxxx
     A
 -----or------
-    AAA
-    xxx
-   xxxxx
-   xPPPx
- AxxPoPxxA
-   xPPPx
-   xxxxx
-    xxx
-    AAA
+    A
+  xxxxx
+  xxPxx
+ AxPoPxA
+  xxPxx
+  xxxxx
+    A
 -----------
 
 SHIFT_M_X    ox
@@ -997,7 +987,6 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
    // In spatial AMR using DCCRG, the neighbors are considered relative to a given cell's size.
    // To get two coarse neighbors from a fine cell at interfaces, the stencil size needs to be increased by one.
    int addStencilDepth = 0;
-   //if (P::vlasovSolverLocalTranslate) addStencilDepth++; // Extra cell for ghost translation
    if (P::amrMaxSpatialRefLevel > 0) {
       switch (VLASOV_STENCIL_WIDTH) {
 	 case 1:
@@ -1005,91 +994,65 @@ void initializeStencils(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
 	    break;
 	 case 2:
 	    // looking from high to low refinement: stencil 2 will only give 1 cell, so need to add 1 
-	    addStencilDepth += 1;
+	    addStencilDepth = 1;
             break;
          case 3:
 	    // looking from high to low refinement: stencil 3 will only give 2 cells, so need to add 2
 	    // to reach surely into the third low-refinement neighbour  
-            addStencilDepth += 2;
+            addStencilDepth = 2;
             break;
          default:
             std::cerr<<"Warning: unrecognized VLASOV_STENCIL_WIDTH in grid.cpp"<<std::endl;
       }
-      //if (P::vlasovSolverLocalTranslate) addStencilDepth++; // AMR addition for ghost translation
    }
 
    /*stencils for semilagrangian propagators*/
    neighborhood.clear();
-   if (P::vlasovSolverLocalTranslate) {
-      /* New method of doing all three cartesian directions with local data
-         Including extra reach if required by AMR
-      */
-      for (int x = -VLASOV_STENCIL_WIDTH-addStencilDepth; x <= VLASOV_STENCIL_WIDTH+addStencilDepth; x++) {
-         for (int y = -VLASOV_STENCIL_WIDTH-addStencilDepth; y <= VLASOV_STENCIL_WIDTH+addStencilDepth; y++) {
-            for (int z = -VLASOV_STENCIL_WIDTH-addStencilDepth; z <= VLASOV_STENCIL_WIDTH+addStencilDepth; z++) {
-               if (x == 0 && y == 0 && z == 0) {
-                  continue;
-               }
-               neigh_t offsets = {{x, y, z}};
-               neighborhood.push_back(offsets);
-            }
-         }
-      }
-   } else {
-      // Classic per-cartesian-direction approach
-      for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
-         if (d != 0) {
-            neighborhood.push_back({{d, 0, 0}});
-            neighborhood.push_back({{0, d, 0}});
-            neighborhood.push_back({{0, 0, d}});
-         }
+   for (int d = -VLASOV_STENCIL_WIDTH-addStencilDepth; d <= VLASOV_STENCIL_WIDTH+addStencilDepth; d++) {
+      if (d != 0) {
+         neighborhood.push_back({{d, 0, 0}});
+         neighborhood.push_back({{0, d, 0}});
+         neighborhood.push_back({{0, 0, d}});
       }
    }
    mpiGrid.add_neighborhood(VLASOV_SOLVER_NEIGHBORHOOD_ID, neighborhood);
 
    // add remaining nearest neighbors for DIST_FUNC neighborhood
-   // Local translation already includes these
-   if (!P::vlasovSolverLocalTranslate) {
-      for (int z = -1; z <= 1; z++) {
-         for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-               if (x == 0 && y == 0 ) continue;
-               if (x == 0 && z == 0 ) continue;
-               if (y == 0 && z == 0 ) continue;
-               neigh_t offsets = {{x, y, z}};
-               neighborhood.push_back(offsets);
-            }
+   for (int z = -1; z <= 1; z++) {
+      for (int y = -1; y <= 1; y++) {
+         for (int x = -1; x <= 1; x++) {
+            if (x == 0 && y == 0 ) continue;
+            if (x == 0 && z == 0 ) continue;
+            if (y == 0 && z == 0 ) continue;
+            neigh_t offsets = {{x, y, z}};
+            neighborhood.push_back(offsets);
          }
       }
    }
    mpiGrid.add_neighborhood(DIST_FUNC_NEIGHBORHOOD_ID, neighborhood);
 
-   /* Full communication: add extended sysboundaries to Vlasov neighborhood
-      already defined for local translation
-   */
-   if (!P::vlasovSolverLocalTranslate) {
-      neighborhood.clear();
-      int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
-      for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
-         for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
-            for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
-               if (x == 0 && y == 0 && z == 0) {
-                  continue;
-               }
-               neigh_t offsets = {{x, y, z}};
-               neighborhood.push_back(offsets);
+   // Full communication: add extended sysboundaries to Vlasov neighborhood
+   neighborhood.clear();
+   int full_neighborhood_size = max(2, VLASOV_STENCIL_WIDTH);
+   for (int z = -full_neighborhood_size; z <= full_neighborhood_size; z++) {
+      for (int y = -full_neighborhood_size; y <= full_neighborhood_size; y++) {
+         for (int x = -full_neighborhood_size; x <= full_neighborhood_size; x++) {
+            if (x == 0 && y == 0 && z == 0) {
+               continue;
             }
+            neigh_t offsets = {{x, y, z}};
+            neighborhood.push_back(offsets);
          }
       }
-      /* Add extra face neighbors if required by AMR */
-      for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
-         neighborhood.push_back({{ d, 0, 0}});
-         neighborhood.push_back({{-d, 0, 0}});
-         neighborhood.push_back({{0, d, 0}});
-         neighborhood.push_back({{0,-d, 0}});
-         neighborhood.push_back({{0, 0, d}});
-         neighborhood.push_back({{0, 0,-d}});
-      }
+   }
+   /* Add extra face neighbors if required by AMR */
+   for (int d = full_neighborhood_size+1; d <= full_neighborhood_size+addStencilDepth; d++) {
+      neighborhood.push_back({{ d, 0, 0}});
+      neighborhood.push_back({{-d, 0, 0}});
+      neighborhood.push_back({{0, d, 0}});
+      neighborhood.push_back({{0,-d, 0}});
+      neighborhood.push_back({{0, 0, d}});
+      neighborhood.push_back({{0, 0,-d}});
    }
    /* all possible communication pairs */
    mpiGrid.add_neighborhood(FULL_NEIGHBORHOOD_ID, neighborhood);
