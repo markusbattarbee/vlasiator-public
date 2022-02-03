@@ -310,13 +310,15 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
 
    // These neighborhoods now include the AMR addition beyond the regular vlasov stencil
    // This is just first face neighbours addition
-   
+
    // Done only at LB so not threaded for now
    for (uint i=0; i<localPropagatedCells.size(); i++) {
 
       CellID c = localPropagatedCells[i];
       SpatialCell *ccell = mpiGrid[c];
       if (!ccell) continue;
+
+      ccell->SpatialCell::parameters[CellParams::AMR_TRANSLATE_COMM_X] = false;
 
       // Is the cell translated?
       if (!do_translate_cell(ccell)) continue;
@@ -347,7 +349,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
          if (mpiGrid.is_local(nx)) continue;
          LocalSet_x.insert(nx);
       }
-      
+
       // First y-translation source
       findNeighborhoodCells(mpiGrid, c, 1, VLASOV_STENCIL_WIDTH+1, foundCells_y);
       for (uint j=0; j<foundCells_y.size(); j++) {
@@ -386,7 +388,7 @@ void prepareLocalTranslationCellLists(const dccrg::Dccrg<SpatialCell,dccrg::Cart
          if (!do_translate_cell(nzcell)) continue;
          if (mpiGrid.is_local(nz)) continue;
          LocalSet_z.insert(nz);
-      }      
+      }
    } // end loop over local cells
 /*
    // Now set flags. We search for remote cells which need data from this cell, so we do the search
@@ -2217,7 +2219,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
                if (spatial_cell && spatial_cell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
                   
                   // In local propagation, do not write to non-local cells
-                  if (P::vlasovSolverLocalTranslate) {
+                  if (P::vlasovSolverLocalTranslate && spatial_cell) {
                      if (!mpiGrid.is_local(spatial_cell->parameters[CellParams::CELLID])) continue;
                   }
                   // Get local velocity block id
@@ -2251,7 +2253,7 @@ bool trans_map_1d_amr(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>&
                   SpatialCell* targetCell = targetCells[GID];
 
                   // In local propagation, do not write to non-local cells
-                  if (P::vlasovSolverLocalTranslate) {
+                  if (P::vlasovSolverLocalTranslate && targetCell) {
                      if (!mpiGrid.is_local(targetCell->parameters[CellParams::CELLID])) continue;
                   }
 
