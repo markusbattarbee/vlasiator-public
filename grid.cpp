@@ -586,7 +586,7 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
       mpiGrid.update_copies_of_remote_neighbors(FULL_NEIGHBORHOOD_ID);
       prepareLocalTranslationCellLists(mpiGrid,cells);
    } else {
-      flagSpatialCellsForAmrCommunication(mpiGrid,cells);
+      //flagSpatialCellsForAmrCommunication(mpiGrid,cells);
    }
    phiprof::stop("compute_amr_transfer_flags");
 
