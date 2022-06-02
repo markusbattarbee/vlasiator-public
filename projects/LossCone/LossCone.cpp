@@ -33,6 +33,7 @@
 
 #include "LossCone.h"
 
+using namespace std;
 using namespace spatial_cell;
 
 Real projects::LossCone::rndRho, projects::LossCone::rndVel[3];
@@ -45,6 +46,7 @@ namespace projects {
 
    void LossCone::addParameters() {
       typedef Readparameters RP;
+      RP::add("LossCone.SaveDispersionData", "Should we save dispersion analysis data (1D in X) to disk?", false);
       RP::add("LossCone.BX0", "Background field value (T)", 1.0e-9);
       RP::add("LossCone.BY0", "Background field value (T)", 2.0e-9);
       RP::add("LossCone.BZ0", "Background field value (T)", 3.0e-9);
@@ -77,6 +79,7 @@ namespace projects {
       Project::getParameters();
       typedef Readparameters RP;
       Project::getParameters();
+      RP::get("LossCone.SaveDispersionData", this->SaveDispersionData);
       RP::get("LossCone.BX0", this->BX0);
       RP::get("LossCone.BY0", this->BY0);
       RP::get("LossCone.BZ0", this->BZ0);
@@ -103,6 +106,95 @@ namespace projects {
          RP::get(pop + "_LossCone.monotonic_base",sP.monotonic_base);
          RP::get(pop + "_LossCone.monotonic_subtract",sP.monotonic_subtract);
          speciesParams.push_back(sP);
+      }
+   }
+
+   void LossCone::hook(
+      cuint& stage,
+      const dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+      FsGrid< std::array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH> & perBGrid,
+      FsGrid< std::array<Real, fsgrids::moments::N_MOMENTS>, FS_STENCIL_WIDTH> & momentsGrid,
+      FsGrid< std::array<Real, fsgrids::efield::N_EFIELD>, FS_STENCIL_WIDTH> & EGrid
+      ) const {
+
+      if (!this->SaveDispersionData) {
+         return;
+      }
+
+      if(hook::END_OF_TIME_STEP == stage) {
+         int myRank;
+         MPI_Comm_rank(MPI_COMM_WORLD,&myRank);
+
+         // vector<Real> localRhom(P::xcells_ini, 0.0), outputRhom(P::xcells_ini, 0.0);
+
+         // const vector<CellID>& cells = getLocalCells();
+
+         // for(uint i=0; i<cells.size(); i++) {
+         //    if(cells[i] <= P::xcells_ini) {
+         //       localRhom[cells[i] - 1] = mpiGrid[cells[i]]->parameters[CellParams::RHOM];
+         //    }
+         // }
+
+         // MPI_Reduce(&(localRhom[0]), &(outputRhom[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+
+         vector<Real> localRhom(P::xcells_ini, 0.0);
+         vector<Real> localPerBx(P::xcells_ini, 0.0);
+         vector<Real> localPerBy(P::xcells_ini, 0.0);
+         vector<Real> localPerBz(P::xcells_ini, 0.0);
+         vector<Real> localEx(P::xcells_ini, 0.0);
+         vector<Real> localEy(P::xcells_ini, 0.0);
+         vector<Real> localEz(P::xcells_ini, 0.0);
+         vector<Real> outputRhom(P::xcells_ini, 0.0);
+         vector<Real> outputPerBx(P::xcells_ini, 0.0);
+         vector<Real> outputPerBy(P::xcells_ini, 0.0);
+         vector<Real> outputPerBz(P::xcells_ini, 0.0);
+         vector<Real> outputEx(P::xcells_ini, 0.0);
+         vector<Real> outputEy(P::xcells_ini, 0.0);
+         vector<Real> outputEz(P::xcells_ini, 0.0);
+
+         const std::array<int32_t, 3> localSize = perBGrid.getLocalSize();
+         const std::array<int32_t, 3> localStart = perBGrid.getLocalStart();
+         for (int x = 0; x < localSize[0]; ++x) {
+            localRhom[x + localStart[0]] = momentsGrid.get(x, 0, 0)->at(fsgrids::moments::RHOM);
+            localPerBx[x + localStart[0]] = perBGrid.get(x, 0, 0)->at(fsgrids::bfield::PERBX);
+            localPerBy[x + localStart[0]] = perBGrid.get(x, 0, 0)->at(fsgrids::bfield::PERBY);
+            localPerBz[x + localStart[0]] = perBGrid.get(x, 0, 0)->at(fsgrids::bfield::PERBZ);
+            localEx[x + localStart[0]] = EGrid.get(x, 0, 0)->at(fsgrids::efield::EX);
+            localEy[x + localStart[0]] = EGrid.get(x, 0, 0)->at(fsgrids::efield::EY);
+            localEz[x + localStart[0]] = EGrid.get(x, 0, 0)->at(fsgrids::efield::EZ);
+         }
+
+         MPI_Reduce(&(localRhom[0]), &(outputRhom[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localPerBx[0]), &(outputPerBx[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localPerBy[0]), &(outputPerBy[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localPerBz[0]), &(outputPerBz[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localEx[0]), &(outputEx[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localEy[0]), &(outputEy[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+         MPI_Reduce(&(localEz[0]), &(outputEz[0]), P::xcells_ini, MPI_DOUBLE, MPI_SUM, MASTER_RANK, MPI_COMM_WORLD);
+
+         if(myRank == MASTER_RANK) {
+            FILE* outputFile = fopen("perBxt.bin", "ab");
+            fwrite(&(outputPerBx[0]), sizeof(outputPerBx[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("perByt.bin", "ab");
+            fwrite(&(outputPerBy[0]), sizeof(outputPerBy[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("perBzt.bin", "ab");
+            fwrite(&(outputPerBz[0]), sizeof(outputPerBz[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("rhomt.bin", "ab");
+            fwrite(&(outputRhom[0]), sizeof(outputRhom[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("Ext.bin", "ab");
+            fwrite(&(outputEx[0]), sizeof(outputEx[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("Eyt.bin", "ab");
+            fwrite(&(outputEy[0]), sizeof(outputEy[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+            outputFile = fopen("Ezt.bin", "ab");
+            fwrite(&(outputEz[0]), sizeof(outputEz[0]), P::xcells_ini, outputFile);
+            fclose(outputFile);
+         }
       }
    }
 
