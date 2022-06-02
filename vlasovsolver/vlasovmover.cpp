@@ -43,6 +43,7 @@
 #include "cpu_acc_semilag.hpp"
 #include "cpu_trans_map.hpp"
 #include "cpu_trans_map_amr.hpp"
+#include "velocity_space_diffusion.h"
 
 using namespace std;
 using namespace spatial_cell;
@@ -528,6 +529,19 @@ momentCalculation:
          cell->parameters[CellParams::MAXVDT]
            = min(cell->get_max_v_dt(popID), cell->parameters[CellParams::MAXVDT]);
       }
+   }
+}
+
+/** Perform artificial pitch-angle diffusion fore all particle populations
+ * This function is AMR safe.
+ * @param mpiGrid Parallel grid library.
+ * @param dt Time step.*/
+void calculateDiffusion(
+   dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+   Real dt
+) {
+   for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
+      velocitySpaceDiffusion(mpiGrid,popID,dt);
    }
 }
 

@@ -30,6 +30,6 @@
 
 
 void velocitySpaceDiffusion(
-        dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,const uint popID);
+   dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,const uint popID, const Real dt);
 
 

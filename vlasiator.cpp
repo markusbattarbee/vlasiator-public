@@ -43,7 +43,6 @@
 #include "spatial_cell.hpp"
 #include "datareduction/datareducer.h"
 #include "sysboundary/sysboundary.h"
-#include "vlasovsolver/velocity_space_diffusion.h"
 
 #include "fieldsolver/fs_common.h"
 #include "projects/project.h"
@@ -955,10 +954,8 @@ int main(int argn,char* args[]) {
       addTimedBarrier("barrier-after-acceleration");
      
       phiprof::start("Diffusion");
-      if (P::artificialPADiff){  
-         for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
-	      velocitySpaceDiffusion(mpiGrid,popID);
-         }
+      if (P::artificialPADiff){
+         calculateDiffusion(mpiGrid,P::dt);
       }
       phiprof::stop("Diffusion",computedCells,"Cells");
 

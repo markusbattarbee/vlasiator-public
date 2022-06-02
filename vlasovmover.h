@@ -42,6 +42,10 @@ void calculateSpatialTranslation(
                                  dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                                  Real dt);
 
+void calculateDiffusion(
+   dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
+   Real dt);
+
 /** Calculate velocity moments for the given spatial cell.
  * This function is defined in cpu_moments.cpp file.*/
 void calculateCellMoments(

@@ -34,8 +34,8 @@
 #include <iomanip>
 #include <iterator>
 
-// TODO: CLEAN UP THIS FUCKING MESS
-
+// TODO: CLEAN UP THIS MESS
+// also: utilize vectorclass operations to efficiently calculate several values within blocks at once?
 using namespace spatial_cell;
 
 static bool checkExistingNeighbour(SpatialCell* cell, Realf VX, Realf VY, Realf VZ, const uint popID) {
@@ -46,17 +46,17 @@ static bool checkExistingNeighbour(SpatialCell* cell, Realf VX, Realf VY, Realf 
 }
 
 void velocitySpaceDiffusion(
-        dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,const uint popID){
+   dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,const uint popID, Real dt){
 
     const auto LocalCells=getLocalCells(); 
     #pragma omp parallel for
     for (int CellIdx = 0; CellIdx < LocalCells.size(); CellIdx++) { //Iterate through spatial cell
-
         auto CellID = LocalCells[CellIdx];
         SpatialCell& cell = *mpiGrid[CellID];
 	const Real* parameters  = cell.get_block_parameters(popID);
         const vmesh::LocalID* nBlocks = cell.get_velocity_grid_length(popID);
-        const vmesh::MeshParameters& vMesh = getObjectWrapper().velocityMeshes[0];      
+        const size_t meshID = getObjectWrapper().particleSpecies[popID].velocityMesh;
+        const vmesh::MeshParameters& vMesh = getObjectWrapper().velocityMeshes[meshID];
 
         Realf Sparsity    = 0.01 * cell.getVelocityBlockMinValue(popID);
 
@@ -87,10 +87,9 @@ void velocitySpaceDiffusion(
         std::vector<int> mucount_array(cell.get_number_of_velocity_blocks(popID)*WID3); // Array to store mucount per cell
 
 
-        while (dtTotalDiff < Parameters::dt) {
+        while (dtTotalDiff < dt) {
 
-            Realf RemainT = Parameters::dt - dtTotalDiff; //Remaining time before reaching simulation time step
-
+            Realf RemainT = dt - dtTotalDiff; //Remaining time before reaching simulation time step
             dfdt.assign(cell.get_number_of_velocity_blocks(popID)*WID3,0.0);                                    // Array of vspace size to store dfdt
             checkCFL.assign(cell.get_number_of_velocity_blocks(popID)*WID3, std::numeric_limits<Realf>::max()); // Array of vspace size to store checkCFl
             ratio.assign(cell.get_number_of_velocity_blocks(popID)*WID3,0.0);                                   // Array to store CellValue / fmu
