@@ -121,7 +121,8 @@ bool ObjectWrapper::getParameters() {
       species.isTestSpecies = testPop;
       bool propagatePop;
       RP::get(pop + "_properties.propagate_population", propagatePop);
-      species.propagateSpecies = propagatePop;if(massUnit == "PROTON") {
+      species.propagateSpecies = propagatePop;
+      if(massUnit == "PROTON") {
          species.mass *= physicalconstants::MASS_PROTON;
       } else if(massUnit == "ELECTRON") {
          species.mass *= physicalconstants::MASS_ELECTRON;
