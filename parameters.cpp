@@ -92,12 +92,13 @@ vector<Real> P::systemWriteDistributionWriteShellRadius;
 vector<int> P::systemWriteDistributionWriteShellStride;
 vector<int> P::systemWrites;
 vector<pair<string, string>> P::systemWriteHints;
+vector<pair<string, string>> P::restartWriteHints;
 
 Real P::saveRestartWalltimeInterval = -1.0;
 uint P::exitAfterRestarts = numeric_limits<uint>::max();
 uint64_t P::vlsvBufferSize = 0;
-int P::restartStripeFactor = -1;
-int P::bulkStripeFactor = -1;
+int P::restartStripeFactor = 0;
+int P::systemStripeFactor = 0;
 string P::restartWritePath = string("");
 
 uint P::transmit = 0;
@@ -148,6 +149,7 @@ Realf P::amrRefineLimit = 1.0;
 Realf P::amrCoarsenLimit = 0.5;
 string P::amrVelRefCriterion = string("");
 uint P::amrMaxSpatialRefLevel = 0;
+int P::maxFilteringPasses = 0;
 uint P::amrBoxHalfWidthX = 1;
 uint P::amrBoxHalfWidthY = 1;
 uint P::amrBoxHalfWidthZ = 1;
@@ -155,7 +157,7 @@ Realf P::amrBoxCenterX = 0.0;
 Realf P::amrBoxCenterY = 0.0;
 Realf P::amrBoxCenterZ = 0.0;
 vector<string> P::blurPassString;
-vector<int> P::numPasses;
+std::vector<int> P::numPasses; //numpasses
 
 bool P::addParameters() {
    typedef Readparameters RP;
@@ -191,6 +193,12 @@ bool P::addParameters() {
    RP::addComposing(
        "io.system_write_mpiio_hint_value",
        "MPI-IO hint value passed to the non-restart IO. Has to be matched by io.system_write_mpiio_hint_key.");
+   RP::addComposing(
+       "io.restart_write_mpiio_hint_key",
+       "MPI-IO hint key passed to the restart IO. Has to be matched by io.restart_write_mpiio_hint_value.");
+   RP::addComposing(
+       "io.restart_write_mpiio_hint_value",
+       "MPI-IO hint value passed to the restart IO. Has to be matched by io.restart_write_mpiio_hint_key.");
 
    RP::add("io.write_initial_state",
            "Write initial state, not even the 0.5 dt propagation is done. Do not use for restarting. ", false);
@@ -201,8 +209,8 @@ bool P::addParameters() {
            numeric_limits<uint>::max());
    RP::add("io.vlsv_buffer_size",
            "Buffer size passed to VLSV writer (bytes, up to uint64_t), default 0 as this is sensible on sisu", 0);
-   RP::add("io.write_restart_stripe_factor", "Stripe factor for restart writing.", -1);
-   RP::add("io.write_bulk_stripe_factor", "Stripe factor for bulk file and initial grid writing.", -1);
+   RP::add("io.write_restart_stripe_factor", "Stripe factor for restart and initial grid writing. Default 0 to inherit.", 0);
+   RP::add("io.write_system_stripe_factor", "Stripe factor for bulk file writing. Default 0 to inherit.", 0);
    RP::add("io.write_as_float", "If true, write in floats instead of doubles", false);
    RP::add("io.restart_write_path",
            "Path to the location where restart files should be written. Defaults to the local directory, also if the "
@@ -302,6 +310,7 @@ bool P::addParameters() {
 
    // Output variable parameters
    // NOTE Do not remove the : before the list of variable names as this is parsed by tools/check_vlasiator_cfg.sh
+
    RP::addComposing("variables.output",
                     string() +
                         "List of data reduction operators (DROs) to add to the grid file output.  Each variable to be "
@@ -319,6 +328,9 @@ bool P::addParameters() {
                         "vg_e_vol fg_e_vol " +
                         "fg_e_hall vg_e_gradpe fg_b_vol vg_b_vol vg_b_background_vol vg_b_perturbed_vol " +
                         "vg_pressure fg_pressure populations_vg_ptensor " + "b_vol_derivatives " +
+                        "ig_fac ig_latitude ig_cellarea ig_upmappedarea ig_sigmap ig_sigmah ig_rhom " +
+                        "ig_electronTemp ig_potential ig_solverinternals ig_upmappedcodecoords ig_upmappedb ig_potential"+
+                        "ig_inplanecurrent ig_e"+
                         "vg_gridcoordinates fg_gridcoordinates meshdata");
 
    RP::addComposing(
@@ -410,7 +422,7 @@ void Parameters::getParameters() {
    RP::get("io.number_of_restarts", P::exitAfterRestarts);
    RP::get("io.vlsv_buffer_size", P::vlsvBufferSize);
    RP::get("io.write_restart_stripe_factor", P::restartStripeFactor);
-   RP::get("io.write_bulk_stripe_factor", P::bulkStripeFactor);
+   RP::get("io.write_system_stripe_factor", P::systemStripeFactor);
    RP::get("io.restart_write_path", P::restartWritePath);
    RP::get("io.write_as_float", P::writeAsFloat);
 
@@ -514,6 +526,23 @@ void Parameters::getParameters() {
       }
    }
 
+   mpiioKeys.clear();
+   mpiioValues.clear();
+   RP::get("io.restart_write_mpiio_hint_key", mpiioKeys);
+   RP::get("io.restart_write_mpiio_hint_value", mpiioValues);
+   
+   if (mpiioKeys.size() != mpiioValues.size()) {
+      if (myRank == MASTER_RANK) {
+         cerr << "WARNING the number of io.restart_write_mpiio_hint_key and io.restart_write_mpiio_hint_value do not "
+                 "match. Disregarding these options."
+              << endl;
+      }
+   } else {
+      for (uint i = 0; i < mpiioKeys.size(); i++) {
+         P::restartWriteHints.push_back({mpiioKeys[i], mpiioValues[i]});
+      }
+   }
+
    RP::get("propagate_field", P::propagateField);
    RP::get("propagate_vlasov_acceleration", P::propagateVlasovAcceleration);
    RP::get("propagate_vlasov_translation", P::propagateVlasovTranslation);
@@ -557,67 +586,45 @@ void Parameters::getParameters() {
    RP::get("AMR.refine_limit", P::amrRefineLimit);
    RP::get("AMR.coarsen_limit", P::amrCoarsenLimit);
    RP::get("AMR.transShortPencils", P::amrTransShortPencils);
-
-   /*Read Blur Passes per Refinement Level*/
    RP::get("AMR.filterpasses", P::blurPassString);
 
-   // Construct Vector of Passes used in grid.cpp
-   bool isEmpty = blurPassString.size() == 0;
-   vector<int>::iterator maxNumPassesPtr;
-   int maxNumPassesInt;
-
-   if (!isEmpty) {
-
-      for (auto i : blurPassString) {
-         P::numPasses.push_back(stoi(i));
-      }
-
-      // Reverse Sort and Get the maximum number of filter passes
-      sort(numPasses.begin(), numPasses.end(), greater<int>());
-
-      // Sanity Check
-      if (P::numPasses.size() != P::amrMaxSpatialRefLevel + 1) {
-         cerr << "Filter Passes=" << P::numPasses.size() << "\t"
-              << "AMR Levels=" << P::amrMaxSpatialRefLevel + 1 << endl;
-         cerr << "FilterPasses do not match AMR levels \t"
-              << " in " << __FILE__ << ":" << __LINE__ << endl;
-         MPI_Abort(MPI_COMM_WORLD, 1);
-      }
-
-      if (myRank == MASTER_RANK) {
-
-         maxNumPassesPtr = max_element(P::numPasses.begin(), P::numPasses.end());
-         if (maxNumPassesPtr != numPasses.end()) {
-            maxNumPassesInt = *maxNumPassesPtr;
-         } else {
-            cerr << "Trying to dereference null pointer \t"
-                 << " in " << __FILE__ << ":" << __LINE__ << endl;
+   // If we are in an AMR run we need to set up the filtering scheme.
+   if (P::amrMaxSpatialRefLevel>0){
+      bool isEmpty = blurPassString.size() == 0;
+      if (!isEmpty){
+         //sanity check=> user should define a pass for every level
+         if (blurPassString.size() != P::amrMaxSpatialRefLevel + 1) {
+            cerr << "Filter Passes=" << blurPassString.size() << "\t" << "AMR Levels=" << P::amrMaxSpatialRefLevel + 1 << endl;
+            cerr << "FilterPasses do not match AMR levels. \t" << " in " << __FILE__ << ":" << __LINE__ << endl;
             MPI_Abort(MPI_COMM_WORLD, 1);
          }
-
-         printf("Filtering is on with max number of Passes= \t%d\n", maxNumPassesInt);
-         int lev = 0;
-         for (auto& iter : P::numPasses) {
-            printf("Refinement Level %d-->%d Passes\n", lev, iter);
-            lev++;
+         //sort the filtering passes per refLevel
+         numPasses.clear();
+         //Parse to a vector of ints
+         for (auto pass : blurPassString){
+            P::numPasses.push_back(stoi(pass));
          }
-      }
-   } else {
-      numPasses = {0};
-
-      if (myRank == MASTER_RANK) {
-         maxNumPassesPtr = max_element(P::numPasses.begin(), P::numPasses.end());
-         if (maxNumPassesPtr != numPasses.end()) {
-            maxNumPassesInt = *maxNumPassesPtr;
-         } else {
-            cerr << "Trying to dereference null pointer \t"
-                 << " in " << __FILE__ << ":" << __LINE__ << endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
+         sort(numPasses.begin(),numPasses.end(),greater<int>());
+      }else{
+         //here we will default to manually constructing the number of passes
+         numPasses.clear();
+         auto g_sequence=[](int size){
+            int retval=1;
+            while(size!=0){
+               retval*=2;
+               size-=1;
+            }
+            return retval;
+         };
+         int maxPasses=g_sequence(P::amrMaxSpatialRefLevel-1);
+         for (uint refLevel=0; refLevel<=P::amrMaxSpatialRefLevel; refLevel++){
+            numPasses.push_back(maxPasses);
+            maxPasses/=2; 
          }
-
-         printf("Filtering is off and max number of Passes is = \t %d\n",
-                *max_element(P::numPasses.begin(), P::numPasses.end()));
+         //Overwrite passes for the highest refLevel. We do not want to filter there.
+         numPasses[P::amrMaxSpatialRefLevel] = 0;
       }
+         P::maxFilteringPasses = numPasses[0];
    }
 
    if (geometryString == "XY4D") {
