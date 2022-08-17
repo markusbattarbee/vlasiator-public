@@ -1038,6 +1038,20 @@ namespace DRO {
       return true;
    }
 
+   // Only defined for RhoNonThermal as also other non-thermal population reducers will benefit
+   // from this and all are turned on or off with the same output parameter
+   bool VariableRhoNonThermal::writeParameters(vlsv::Writer& vlsvWriter) {
+      Real nthrad = getObjectWrapper().particleSpecies[popID].thermalRadius;
+      Real nthvx = getObjectWrapper().particleSpecies[popID].thermalV[0];
+      Real nthvy = getObjectWrapper().particleSpecies[popID].thermalV[1];
+      Real nthvz = getObjectWrapper().particleSpecies[popID].thermalV[2];
+      if( vlsvWriter.writeParameter(popName+"_NonThermalRadius", &nthrad) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_NonThermalVX", &nthvx) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_NonThermalVY", &nthvy) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_NonThermalVZ", &nthvz) == false ) { return false; }
+      return true;
+   }
+
    // Rho thermal:
    VariableRhoThermal::VariableRhoThermal(cuint _popID): DataReductionOperator(),popID(_popID) {
       popName = getObjectWrapper().particleSpecies[popID].name;
@@ -1064,6 +1078,20 @@ namespace DRO {
    
    bool VariableRhoThermal::setSpatialCell(const SpatialCell* cell) {
       RhoThermal = 0.0;
+      return true;
+   }
+
+   // Only defined for RhoThermal as also other thermal population reducers will benefit
+   // from this and all are turned on or off with the same output parameter
+   bool VariableRhoThermal::writeParameters(vlsv::Writer& vlsvWriter) {
+      Real thrad = getObjectWrapper().particleSpecies[popID].thermalRadius;
+      Real thvx = getObjectWrapper().particleSpecies[popID].thermalV[0];
+      Real thvy = getObjectWrapper().particleSpecies[popID].thermalV[1];
+      Real thvz = getObjectWrapper().particleSpecies[popID].thermalV[2];
+      if( vlsvWriter.writeParameter(popName+"_ThermalRadius", &thrad) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_ThermalVX", &thvx) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_ThermalVY", &thvy) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_ThermalVZ", &thvz) == false ) { return false; }
       return true;
    }
 

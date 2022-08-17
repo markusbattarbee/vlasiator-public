@@ -497,9 +497,20 @@ bool writeCommonGridData(
    if( vlsvWriter.writeParameter("ycells_ini", &P::ycells_ini) == false ) { return false; }
    if( vlsvWriter.writeParameter("zcells_ini", &P::zcells_ini) == false ) { return false; }
 
-   //Mark the new version:
-   float version = 3.00;
-   if( vlsvWriter.writeParameter( "version", &version ) == false ) { return false; }
+   // Write per-population parameters
+   for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
+      const string popName = getObjectWrapper().particleSpecies[popID].name;
+      const Real mass = getObjectWrapper().particleSpecies[popID].mass;
+      const Real charge = getObjectWrapper().particleSpecies[popID].charge;
+      const bool istestspecies = getObjectWrapper().particleSpecies[popID].isTestSpecies;
+      const bool ispropagatedspecies = getObjectWrapper().particleSpecies[popID].propagateSpecies;
+
+      if( vlsvWriter.writeParameter(popName+"_mass", &mass) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_charge", &charge) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_testSpecies", &istestspecies) == false ) { return false; }
+      if( vlsvWriter.writeParameter(popName+"_propagatedSpecies", &ispropagatedspecies) == false ) { return false; }
+   }
+
    return true; 
 }
 
