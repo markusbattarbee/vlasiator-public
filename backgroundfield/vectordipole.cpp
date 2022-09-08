@@ -31,7 +31,7 @@ Background magnetic field class of Vlasiator.
 
 // tilt_angle_phi is from the z-axis in radians
 // tilt_angle_theta is from the Sun-Earth-line in radians
-void VectorDipole::initialize(const double moment,const double center_x, const double center_y, const double center_z, const double tilt_angle_phi, const double tilt_angle_theta, const double xlimit_f, const double xlimit_z, const double IMF_Bx, const double IMF_By, const double IMF_Bz){
+void VectorDipole::initialize(const double moment,const double center_x, const double center_y, const double center_z, const double tilt_angle_phi, const double tilt_angle_theta, const double xlimit_f, const double xlimit_z, const double IMF_rz, const double IMF_rf, const double IMF_Bx, const double IMF_By, const double IMF_Bz){
    this->initialized = true;
 
    q[0]=-sin(tilt_angle_phi)*cos(tilt_angle_theta)*moment;
@@ -46,7 +46,11 @@ void VectorDipole::initialize(const double moment,const double center_x, const d
    xlimit[0]=xlimit_f; // Full dipole when x < xlimit_f
    xlimit[1]=xlimit_z; // Zero dipole when x > xlimit_z
 
-   // Going from xlimit_f to xlimit_z, scale in IMF B-field
+   // Scale in IMF field
+   rlimit[0]=IMF_rz; // Zero IMF when r < IMF_rz
+   rlimit[1]=IMF_rf; // Full IMF when r > IMF_rf
+   
+   // Going from xlimit_z to xlimit_f or from IMF_rz to IMF_rf, scale in IMF B-field
    IMF[0]=IMF_Bx;
    IMF[1]=IMF_By;
    IMF[2]=IMF_Bz;

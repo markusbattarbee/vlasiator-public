@@ -35,12 +35,24 @@ private:
    bool initialized = false;
    double q[3];      // Dipole moment; set to (0,0,moment) for z-aligned
    double center[3]; // Coordinates where the dipole sits; set to (0,0,0)
-   double xlimit[2]; // X-coodrinate extents of full and zero dipole
-   double IMF[3];    // IMF value to scale to, starting at xlimit[0] and finishing at xlimit[1]
+   double xlimit[2]; // X-coordinate extents of full and zero dipole
+   double rlimit[2]; // Radial extents for scaling in IMF field
+   double IMF[3];    // IMF value to scale to
+   /**
+      IMF field is added either based on X-coordinate:
+        only in upstream
+        scales in as dipole is scaled out, with zero IMF at X<xlimit[0] and full IMF at X>xlimit[1]
+      or based on radial coordinate:
+        everywhere outside inner magnetosphere
+        scales in with zero IMT at R<rlimit[0] and full IMF at R>rlimit[1]
+
+        Note: dipole itself always only follows xlimits, not rlimits
+   **/
+   
 public:
    
    VectorDipole(){};
-   void initialize(const double moment,const double center_x, const double center_y, const double center_z, const double tilt_angle_phi, const double tilt_angle_theta, const double xlimit_f, const double xlimit_z, const double IMF_Bx, const double IMF_By, const double IMF_Bz);
+   void initialize(const double moment,const double center_x, const double center_y, const double center_z, const double tilt_angle_phi, const double tilt_angle_theta, const double xlimit_f, const double xlimit_z, const double IMF_rz, const double IMF_rf, const double IMF_Bx, const double IMF_By, const double IMF_Bz);
    double operator()(double x, double y, double z, coordinate component, unsigned int derivative=0, coordinate dcomponent=X) const;
 };
 
