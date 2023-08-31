@@ -960,8 +960,7 @@ bool writeFsGridMetadata(FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technic
   vlsvWriter.writeArray("MESH_DOMAIN_SIZES", xmlAttributes, 1, 2, &meshDomainSize[0]);
 
   // how many MPI ranks we wrote from
-  int size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  int size = technicalGrid.getSize();
   vlsvWriter.writeParameter("numWritingRanks", &size);
 
   // Finally, write mesh object itself.
