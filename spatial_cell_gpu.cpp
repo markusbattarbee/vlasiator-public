@@ -1543,10 +1543,13 @@ namespace spatial_cell {
             // STAGE1 should have been done, otherwise we have problems...
             if (receiving) {
                //mpi_number_of_blocks transferred earlier
-               populations[activePopID].vmesh->setNewSize(populations[activePopID].N_blocks);
+               // false sets this to reside on CPU instead of GPU
+               populations[activePopID].vmesh->setNewSize(populations[activePopID].N_blocks, false);
             } else {
                 //resize to correct size (it will avoid reallocation if it is big enough, I assume)
                 populations[activePopID].N_blocks = populations[activePopID].blockContainer->size();
+                // prefetch to CPU
+                populations[activePopID].vmesh->gpu_prefetchHost(gpu_getStream());
             }
 
             // send velocity block list
@@ -1561,18 +1564,20 @@ namespace spatial_cell {
             block_lengths.push_back(sizeof(vmesh::LocalID));
          }
          if ((SpatialCell::mpi_transfer_type & Transfer::VEL_BLOCK_WITH_CONTENT_STAGE2) !=0) {
+            this->velocity_block_with_content_list->optimizeGPU(gpu_getStream());
             if (receiving) {
                this->velocity_block_with_content_list->resize(this->velocity_block_with_content_list_size,true);
                // Re receive velocity block content lists only for remote cells (?) so no need to
                // attach to a stream at this point.
-             }
-
+            }
             //velocity_block_with_content_list_size should first be updated, before this can be done (STAGE1)
             displacements.push_back((uint8_t*) this->velocity_block_with_content_list->data() - (uint8_t*) this);
             block_lengths.push_back(sizeof(vmesh::GlobalID)*this->velocity_block_with_content_list_size);
          }
 
          if ((SpatialCell::mpi_transfer_type & Transfer::VEL_BLOCK_DATA) !=0) {
+            // Prefetch block data to host
+            (populations[activePopID].blockContainer)->gpu_prefetchDataHost();
             displacements.push_back((uint8_t*) get_data(activePopID) - (uint8_t*) this);
             block_lengths.push_back(sizeof(Realf) * WID3 * populations[activePopID].blockContainer->size());
          }
@@ -1667,7 +1672,7 @@ namespace spatial_cell {
             block_lengths.push_back(sizeof(Real) * 3);
          }
 
-         // send  sysBoundaryFlag
+         // send sysBoundaryFlag
          if ((SpatialCell::mpi_transfer_type & Transfer::CELL_SYSBOUNDARYFLAG)!=0){
             displacements.push_back((uint8_t*) &(this->sysBoundaryFlag) - (uint8_t*) this);
             block_lengths.push_back(sizeof(uint));
@@ -1676,6 +1681,8 @@ namespace spatial_cell {
          }
 
          if ((SpatialCell::mpi_transfer_type & Transfer::VEL_BLOCK_PARAMETERS) !=0) {
+            // Prefetch block parameters to host
+            (populations[activePopID].blockContainer)->gpu_prefetchParametersHost();
             displacements.push_back((uint8_t*) get_block_parameters(activePopID) - (uint8_t*) this);
             block_lengths.push_back(sizeof(Real) * size(activePopID) * BlockParams::N_VELOCITY_BLOCK_PARAMS);
          }

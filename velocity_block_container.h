@@ -84,7 +84,11 @@ namespace vmesh {
       void gpu_Allocate(vmesh::LocalID size);
       void gpu_Allocate();
       void gpu_prefetchHost();
+      void gpu_prefetchDataHost();
+      void gpu_prefetchParametersHost();
       void gpu_prefetchDevice();
+      void gpu_prefetchDataDevice();
+      void gpu_prefetchParametersDevice();
       void gpu_attachToStream(gpuStream_t stream=0);
       void gpu_detachFromStream();
       void gpu_memAdvise(int device, gpuStream_t stream);
@@ -301,6 +305,15 @@ namespace vmesh {
       parameters->optimizeCPU(gpu_getStream());
       return;
    }
+   inline void VelocityBlockContainer::gpu_prefetchDataHost() {
+      block_data->optimizeCPU(gpu_getStream());
+      return;
+   }
+
+   inline void VelocityBlockContainer::gpu_prefetchParametersHost() {
+      parameters->optimizeCPU(gpu_getStream());
+      return;
+   }
 
    inline void VelocityBlockContainer::gpu_prefetchDevice() {
       //if (numberOfBlocks==0) return; // This size check in itself causes a page fault
@@ -308,8 +321,16 @@ namespace vmesh {
       parameters->optimizeGPU(gpu_getStream());
       return;
    }
+   inline void VelocityBlockContainer::gpu_prefetchDataDevice() {
+      block_data->optimizeGPU(gpu_getStream());
+      return;
+   }
+   inline void VelocityBlockContainer::gpu_prefetchParametersDevice() {
+      parameters->optimizeGPU(gpu_getStream());
+      return;
+   }
 
-      inline void VelocityBlockContainer::gpu_memAdvise(int device, gpuStream_t stream) {
+   inline void VelocityBlockContainer::gpu_memAdvise(int device, gpuStream_t stream) {
       // int device = gpu_getDevice();
       block_data->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
       parameters->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);

@@ -187,8 +187,8 @@ void initializeGrids(
    mpiGrid.balance_load(); // Direct DCCRG call, recalculate cache afterwards
    recalculateLocalCellsCache();
 
-   SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
-   mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+   // SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA);
+   // mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
 
    setFaceNeighborRanks( mpiGrid );
    const vector<CellID>& cells = getLocalCells();
@@ -445,13 +445,13 @@ void setFaceNeighborRanks( dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& 
       if (!cell) continue;
 
       cell->face_neighbor_ranks.clear();
-      
+
       for (const auto& [neighbor, dir] : mpiGrid.get_face_neighbors_of(cellid)) {
 
          int neighborhood;
 
          // We store rank numbers into a map that has neighborhood ids as its key values.
-         
+
          switch (dir) {
          case -3:
             neighborhood = SHIFT_M_Z_NEIGHBORHOOD_ID;
@@ -477,8 +477,8 @@ void setFaceNeighborRanks( dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& 
          }
 
          cell->face_neighbor_ranks[neighborhood].insert(mpiGrid.get_process(neighbor));
-         
-      }      
+
+      }
    }
 }
 
@@ -553,6 +553,20 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
          mpiGrid.continue_balance_load();
          SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
          mpiGrid.continue_balance_load();
+
+         #ifdef USE_GPU
+         // Prefetch back
+         #pragma omp parallel for
+         for(size_t i=0; i<incoming_cells_list.size(); ++i) {
+            SpatialCell* SC = mpiGrid[incoming_cells_list[i]];
+            if (SC) SC->get_velocity_mesh(p)->gpu_prefetchDevice(gpu_getStream());
+         }
+         #pragma omp parallel for
+         for(size_t i=0; i<outgoing_cells_list.size(); ++i) {
+            SpatialCell* SC = mpiGrid[outgoing_cells_list[i]];
+            if (SC) SC->get_velocity_mesh(p)->gpu_prefetchDevice(gpu_getStream());
+         }
+         #endif
 
          int receives = 0;
          for (unsigned int i=0; i<incoming_cells_list.size(); i++) {
@@ -723,6 +737,23 @@ bool adjustVelocityBlocks(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& m
    mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_WITH_CONTENT_STAGE2 );
    mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
+
+   #ifdef USE_GPU
+   // Prefetch back
+   const std::vector<CellID> local_boundary_cells = mpiGrid.get_local_cells_on_process_boundary(NEAREST_NEIGHBORHOOD_ID);
+   const std::vector<CellID> remote_boundary_cells = mpiGrid.get_remote_cells_on_process_boundary(NEAREST_NEIGHBORHOOD_ID);
+   #pragma omp parallel for
+   for(size_t i=0; i<local_boundary_cells.size(); ++i) {
+      SpatialCell* SC = mpiGrid[local_boundary_cells[i]];
+      if (SC) SC->velocity_block_with_content_list->optimizeGPU(gpu_getStream());
+   }
+   #pragma omp parallel for
+   for(size_t i=0; i<remote_boundary_cells.size(); ++i) {
+      SpatialCell* SC = mpiGrid[remote_boundary_cells[i]];
+      if (SC) SC->velocity_block_with_content_list->optimizeGPU(gpu_getStream());
+   }
+   #endif
+
    phiprof::stop("Transfer with_content_list");
 
 #ifdef USE_GPU
@@ -929,7 +960,6 @@ void updateRemoteVelocityBlockLists(
 )
 {
    SpatialCell::setCommunicatedSpecies(popID);
-
    // update velocity block lists For small velocity spaces it is
    // faster to do it in one operation, and not by first sending size,
    // then list. For large we do it in two steps
@@ -939,6 +969,23 @@ void updateRemoteVelocityBlockLists(
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
    SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
    mpiGrid.update_copies_of_remote_neighbors(neighborhood);
+
+   #ifdef USE_GPU
+   // Prefetch back
+   const std::vector<CellID> local_boundary_cells = mpiGrid.get_local_cells_on_process_boundary(neighborhood);
+   const std::vector<CellID> remote_boundary_cells = mpiGrid.get_remote_cells_on_process_boundary(neighborhood);
+   #pragma omp parallel for
+   for(size_t i=0; i<local_boundary_cells.size(); ++i) {
+      SpatialCell* SC = mpiGrid[local_boundary_cells[i]];
+      if (SC) SC->get_velocity_mesh(popID)->gpu_prefetchDevice(gpu_getStream());
+   }
+   #pragma omp parallel for
+   for(size_t i=0; i<remote_boundary_cells.size(); ++i) {
+      SpatialCell* SC = mpiGrid[remote_boundary_cells[i]];
+      if (SC) SC->get_velocity_mesh(popID)->gpu_prefetchDevice(gpu_getStream());
+   }
+   #endif
+
    phiprof::stop("Velocity block list update");
 
    // Prepare spatial cells for receiving velocity block data
@@ -946,7 +993,6 @@ void updateRemoteVelocityBlockLists(
    const std::vector<uint64_t> incoming_cells
       = mpiGrid.get_remote_cells_on_process_boundary(neighborhood);
    #pragma omp parallel for
-
    for (unsigned int i=0; i<incoming_cells.size(); ++i) {
      uint64_t cell_id = incoming_cells[i];
      SpatialCell* cell = mpiGrid[cell_id];
@@ -1251,6 +1297,7 @@ bool validateMesh(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,c
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_LIST_STAGE2);
       mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
       phiprof::stop("MPI");
+      // No GPU prefetching in side vAMR region
 
       // Iterate over all local spatial cells and calculate
       // the necessary velocity block refinements
@@ -1508,6 +1555,12 @@ bool adaptRefinement(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGri
       SpatialCell::set_mpi_transfer_type(Transfer::ALL_DATA);
       mpiGrid.continue_refining();
       phiprof::stop("transfer_all_data");
+
+      #ifdef USE_GPU
+      for (CellID id : receives) {
+         mpiGrid[id]->prefetchDevice();
+      }
+      #endif
    }
    phiprof::stop("transfers");
 

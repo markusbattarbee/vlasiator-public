@@ -102,6 +102,20 @@ void calculateSpatialTranslation(
       SpatialCell::set_mpi_transfer_direction(2);
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA,false,AMRtranslationActive);
       mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID);
+      #ifdef USE_GPU
+      // Prefetch back
+      const std::vector<CellID> local_boundary_cells = mpiGrid.get_local_cells_on_process_boundary(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID);
+      const std::vector<CellID> remote_boundary_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID);
+      #pragma omp parallel for
+      for(size_t i=0; i<local_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[local_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      for(size_t i=0; i<remote_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[remote_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      #endif
       phiprof::stop(trans_timer);
 
       // bt=phiprof::initializeTimer("barrier-trans-pre-trans_map_1d-z","Barriers","MPI");
@@ -151,6 +165,20 @@ void calculateSpatialTranslation(
       SpatialCell::set_mpi_transfer_direction(0);
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA,false,AMRtranslationActive);
       mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
+      #ifdef USE_GPU
+      // Prefetch back
+      const std::vector<CellID> local_boundary_cells = mpiGrid.get_local_cells_on_process_boundary(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
+      const std::vector<CellID> remote_boundary_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
+      #pragma omp parallel for
+      for(size_t i=0; i<local_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[local_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      for(size_t i=0; i<remote_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[remote_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      #endif
       phiprof::stop(trans_timer);
 
       // bt=phiprof::initializeTimer("barrier-trans-pre-trans_map_1d-x","Barriers","MPI");
@@ -200,6 +228,20 @@ void calculateSpatialTranslation(
       SpatialCell::set_mpi_transfer_direction(1);
       SpatialCell::set_mpi_transfer_type(Transfer::VEL_BLOCK_DATA,false,AMRtranslationActive);
       mpiGrid.update_copies_of_remote_neighbors(VLASOV_SOLVER_Y_NEIGHBORHOOD_ID);
+      #ifdef USE_GPU
+      // Prefetch back
+      const std::vector<CellID> local_boundary_cells = mpiGrid.get_local_cells_on_process_boundary(VLASOV_SOLVER_Y_NEIGHBORHOOD_ID);
+      const std::vector<CellID> remote_boundary_cells = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_Y_NEIGHBORHOOD_ID);
+      #pragma omp parallel for
+      for(size_t i=0; i<local_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[local_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      for(size_t i=0; i<remote_boundary_cells.size(); ++i) {
+         SpatialCell* SC = mpiGrid[remote_boundary_cells[i]];
+         if (SC) SC->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+      }
+      #endif
       phiprof::stop(trans_timer);
 
       // bt=phiprof::initializeTimer("barrier-trans-pre-trans_map_1d-y","Barriers","MPI");

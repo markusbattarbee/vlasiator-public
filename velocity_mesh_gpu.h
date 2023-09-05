@@ -96,7 +96,7 @@ namespace vmesh {
       bool setGrid(const std::vector<vmesh::GlobalID>& globalIDs);
       bool setGrid(const split::SplitVector<vmesh::GlobalID>& globalIDs);
       bool setMesh(const size_t& meshID);
-      void setNewSize(const vmesh::LocalID& newSize);
+      void setNewSize(const vmesh::LocalID& newSize, const bool onGPU=true);
       void setNewCapacity(const vmesh::LocalID& newCapacity);
       ARCH_HOSTDEV size_t size() const;
       ARCH_HOSTDEV size_t sizeInBytes() const;
@@ -620,9 +620,10 @@ namespace vmesh {
       return true;
    }
 
-   inline void VelocityMesh::setNewSize(const vmesh::LocalID& newSize) {
+   inline void VelocityMesh::setNewSize(const vmesh::LocalID& newSize, const bool onGPU) {
       // Needed by GPU block adjustment
       // Passing eco flag = true to resize tells splitvector we manage padding manually.
+      // onGPU flag tells where it should end up
       vmesh::LocalID currentCapacity = localToGlobalMap->capacity();
       gpuStream_t stream = gpu_getStream();
       localToGlobalMap->resize(newSize,true);
@@ -630,18 +631,28 @@ namespace vmesh {
       if (newSize > currentCapacity) {
          // Was allocated new memory
          CHK_ERR( gpuStreamSynchronize(stream) );
-         localToGlobalMap->optimizeGPU(stream);
-         localToGlobalMap->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
-         localToGlobalMap->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+         if (onGPU) {
+            localToGlobalMap->optimizeGPU(stream);
+            localToGlobalMap->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+            localToGlobalMap->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+         }
+      }
+      if (!onGPU) {
+         localToGlobalMap->optimizeCPU(stream);
       }
       // Ensure also that the map is large enough
       const int HashmapReqSize = ceil(log2(newSize)) +2; // Make it really large enough
       if (globalToLocalMap->getSizePower() < HashmapReqSize) {
          globalToLocalMap->device_rehash(HashmapReqSize, stream);
          CHK_ERR( gpuStreamSynchronize(stream) );
-         globalToLocalMap->optimizeGPU(stream);
-         globalToLocalMap->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
-         globalToLocalMap->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+         if (onGPU) {
+            globalToLocalMap->optimizeGPU(stream);
+            globalToLocalMap->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+            globalToLocalMap->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+         }
+      }
+      if (!onGPU) {
+         globalToLocalMap->optimizeCPU(stream);
       }
       // Re-attach stream if required
       if ((attachedStream != 0)&&(needAttachedStreams)) {

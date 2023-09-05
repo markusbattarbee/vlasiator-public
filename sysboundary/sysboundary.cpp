@@ -830,6 +830,10 @@ void SysBoundary::applySysBoundaryVlasovConditions(
                           boundaryCells);
 #pragma omp parallel for
       for (uint i = 0; i < boundaryCells.size(); i++) {
+         #ifdef USE_GPU
+         // Prefetch data to GPU after MPI call
+         mpiGrid[boundaryCells[i]]->get_velocity_blocks(popID)->gpu_prefetchDataDevice();
+         #endif
          cuint sysBoundaryType = mpiGrid[boundaryCells[i]]->sysBoundaryFlag;
          this->getSysBoundary(sysBoundaryType)->vlasovBoundaryCondition(mpiGrid, boundaryCells[i], popID, calculate_V_moments);
       }
