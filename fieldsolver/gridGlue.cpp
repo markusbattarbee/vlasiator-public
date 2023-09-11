@@ -90,6 +90,9 @@ template <typename T, int stencil> void computeCoupling(dccrg::Dccrg<SpatialCell
        onDccrgMapRemoteProcess[process].insert(dccrgCells[i]); //add to map
      }    
   }
+  int mpi_rrank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rrank);
+  printf("Rank: %d, DCCRG_SIZE: %d, FSGRID_SIZE: %d\n", mpi_rrank, dccrgCells.size(), gridDims[0]*gridDims[1]*gridDims[2]);fflush(stdout);
 }
 
 /*
