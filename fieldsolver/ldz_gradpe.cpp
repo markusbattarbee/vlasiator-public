@@ -165,27 +165,30 @@ void calculateGradPeTermSimple(
    const size_t N_cells = gridDims[0]*gridDims[1]*gridDims[2];
    phiprof::start("Calculate GradPe term");
 
-   timer=phiprof::initializeTimer("MPI","MPI");
+   timer=phiprof::initializeTimer("EgradPe field update ghosts MPI","MPI");
    phiprof::start(timer);
    dMomentsGrid.updateGhostCells();
    phiprof::stop(timer);
 
    // Calculate GradPe term
-   timer=phiprof::initializeTimer("Compute cells");
-   phiprof::start(timer);
-   #pragma omp parallel for collapse(3)
-   for (int k=0; k<gridDims[2]; k++) {
-      for (int j=0; j<gridDims[1]; j++) {
-         for (int i=0; i<gridDims[0]; i++) {
-            if (RKCase == RK_ORDER1 || RKCase == RK_ORDER2_STEP2) {
-               calculateGradPeTerm(EGradPeGrid, momentsGrid, dMomentsGrid, technicalGrid, i, j, k, sysBoundaries);
-            } else {
-               calculateGradPeTerm(EGradPeGrid, momentsDt2Grid, dMomentsGrid, technicalGrid, i, j, k, sysBoundaries);
+   #pragma omp parallel
+   {
+      //timer=phiprof::initializeTimer("EgradPe Compute cells");
+      phiprof::start("EgradPe Compute cells");
+      #pragma omp for collapse(2)
+      for (int k=0; k<gridDims[2]; k++) {
+         for (int j=0; j<gridDims[1]; j++) {
+            for (int i=0; i<gridDims[0]; i++) {
+               if (RKCase == RK_ORDER1 || RKCase == RK_ORDER2_STEP2) {
+                  calculateGradPeTerm(EGradPeGrid, momentsGrid, dMomentsGrid, technicalGrid, i, j, k, sysBoundaries);
+               } else {
+                  calculateGradPeTerm(EGradPeGrid, momentsDt2Grid, dMomentsGrid, technicalGrid, i, j, k, sysBoundaries);
+               }
             }
          }
       }
+      //phiprof::stop(timer,N_cells,"EgradPe Compute cells");
+      phiprof::stop("EgradPe Compute cells");
    }
-   phiprof::stop(timer,N_cells,"Spatial Cells");
-   
    phiprof::stop("Calculate GradPe term",N_cells,"Spatial Cells");
 }
