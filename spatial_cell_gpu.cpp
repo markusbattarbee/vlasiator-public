@@ -580,16 +580,20 @@ namespace spatial_cell {
       // SplitVectors via pointers for unified memory
       velocity_block_with_content_list = new split::SplitVector<vmesh::GlobalID>(1);
       velocity_block_with_no_content_list = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksRequired = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToAdd = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToRemove = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToMove = new split::SplitVector<vmesh::GlobalID>(1);
       velocity_block_with_content_list->clear();
       velocity_block_with_no_content_list->clear();
-      BlocksRequired->clear();
-      BlocksToAdd->clear();
-      BlocksToRemove->clear();
-      BlocksToMove->clear();
+      // BlocksRequired = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToAdd = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToRemove = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToMove = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksRequired->clear();
+      // BlocksToAdd->clear();
+      // BlocksToRemove->clear();
+      // BlocksToMove->clear();
+      BlocksRequired = vecGIDRequired.upload();
+      BlocksToAdd = vecGIDToAdd.upload();
+      BlocksToRemove = vecGIDToRemove.upload();
+      BlocksToMove = vecGIDToMove.upload();
       attachedStream=0;
       velocity_block_with_content_list_size=0;
       BlocksRequiredMap = new Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>(7);
@@ -612,10 +616,14 @@ namespace spatial_cell {
       if (info_vbwcl) {
          delete velocity_block_with_content_list;
          delete velocity_block_with_no_content_list;
-         delete BlocksRequired;
-         delete BlocksToAdd;
-         delete BlocksToRemove;
-         delete BlocksToMove;
+         CHK_ERR( gpuFree(BlocksRequired) );
+         CHK_ERR( gpuFree(BlocksToAdd) );
+         CHK_ERR( gpuFree(BlocksToRemove) );
+         CHK_ERR( gpuFree(BlocksToMove) );
+         // delete BlocksRequired;
+         // delete BlocksToAdd;
+         // delete BlocksToRemove;
+         // delete BlocksToMove;
          delete BlocksRequiredMap;
          gpuFreeHost(info_vbwcl);
          gpuFreeHost(info_vbwncl);
@@ -634,27 +642,37 @@ namespace spatial_cell {
    SpatialCell::SpatialCell(const SpatialCell& other) {
       velocity_block_with_content_list = new split::SplitVector<vmesh::GlobalID>(1);
       velocity_block_with_no_content_list = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksRequired = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToAdd = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToRemove = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksToMove = new split::SplitVector<vmesh::GlobalID>(1);
-      BlocksRequired->clear();
-      BlocksToAdd->clear();
-      BlocksToRemove->clear();
-      BlocksToMove->clear();
       velocity_block_with_content_list->clear();
       velocity_block_with_no_content_list->clear();
+      // BlocksRequired = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToAdd = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToRemove = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksToMove = new split::SplitVector<vmesh::GlobalID>(1);
+      // BlocksRequired->clear();
+      // BlocksToAdd->clear();
+      // BlocksToRemove->clear();
+      // BlocksToMove->clear();
 
       BlocksRequiredMap = new Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>(7);
 
       // Make space reservation guesses based on popID 0
       const uint reserveSize = other.populations[0].vmesh->size()*BLOCK_ALLOCATION_PADDING;
-      BlocksRequired->reserve(reserveSize,true);
-      BlocksToAdd->reserve(reserveSize,true);
-      BlocksToRemove->reserve(reserveSize,true);
-      BlocksToMove->reserve(reserveSize,true);
       velocity_block_with_content_list->reserve(reserveSize,true);
       velocity_block_with_no_content_list->reserve(reserveSize,true);
+      velocity_block_with_content_list->clear();
+      velocity_block_with_no_content_list->clear();
+      // BlocksRequired->reserve(reserveSize,true);
+      // BlocksToAdd->reserve(reserveSize,true);
+      // BlocksToRemove->reserve(reserveSize,true);
+      // BlocksToMove->reserve(reserveSize,true);
+      vecGIDRequired.reserve(reserveSize);
+      vecGIDToAdd.reserve(reserveSize);
+      vecGIDToRemove.reserve(reserveSize);
+      vecGIDToMove.reserve(reserveSize);
+      BlocksRequired = vecGIDRequired.upload();
+      BlocksToAdd = vecGIDToAdd.upload();
+      BlocksToRemove = vecGIDToRemove.upload();
+      BlocksToMove = vecGIDToMove.upload();
 
       // Member variables
       ioLocalCellId = other.ioLocalCellId;
@@ -694,19 +712,36 @@ namespace spatial_cell {
       gpuMallocHost((void **) &info_brm, sizeof(Hashinator::MapInfo));
    }
    const SpatialCell& SpatialCell::operator=(const SpatialCell& other) {
-      const uint reserveSize = (other.BlocksRequired)->capacity();
-      BlocksRequired->clear();
-      BlocksToAdd->clear();
-      BlocksToRemove->clear();
-      BlocksToMove->clear();
+      // const uint reserveSize = (other.BlocksRequired)->capacity();
+      // BlocksRequired->clear();
+      // BlocksToAdd->clear();
+      // BlocksToRemove->clear();
+      // BlocksToMove->clear();
+      const uint reserveSize = (other.vecGIDRequired).capacity();
+      vecGIDRequired.clear();
+      vecGIDToAdd.clear();
+      vecGIDToRemove.clear();
+      vecGIDToMove.clear();
+      CHK_ERR( gpuFree(BlocksRequired) );
+      CHK_ERR( gpuFree(BlocksToAdd) );
+      CHK_ERR( gpuFree(BlocksToRemove) );
+      CHK_ERR( gpuFree(BlocksToMove) );
       velocity_block_with_content_list->clear();
       velocity_block_with_no_content_list->clear();
       delete BlocksRequiredMap;
 
-      BlocksRequired->reserve(reserveSize,true);
-      BlocksToAdd->reserve(reserveSize,true);
-      BlocksToRemove->reserve(reserveSize,true);
-      BlocksToMove->reserve(reserveSize,true);
+      // BlocksRequired->reserve(reserveSize,true);
+      // BlocksToAdd->reserve(reserveSize,true);
+      // BlocksToRemove->reserve(reserveSize,true);
+      // BlocksToMove->reserve(reserveSize,true);
+      vecGIDRequired.reserve(reserveSize);
+      vecGIDToAdd.reserve(reserveSize);
+      vecGIDToRemove.reserve(reserveSize);
+      vecGIDToMove.reserve(reserveSize);
+      BlocksRequired = vecGIDRequired.upload();
+      BlocksToAdd = vecGIDToAdd.upload();
+      BlocksToRemove = vecGIDToRemove.upload();
+      BlocksToMove = vecGIDToMove.upload();
       velocity_block_with_content_list->reserve(reserveSize,true);
       velocity_block_with_no_content_list->reserve(reserveSize,true);
 
@@ -755,18 +790,26 @@ namespace spatial_cell {
       // AMD advise is slow
       int device = gpu_getDevice();
       gpuStream_t stream = gpu_getStream();
-      BlocksRequired->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
-      BlocksToAdd->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
-      BlocksToRemove->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
-      BlocksToMove->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      // BlocksRequired->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      // BlocksToAdd->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      // BlocksToRemove->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      // BlocksToMove->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      vecGIDRequired.memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      vecGIDToAdd.memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      vecGIDToRemove.memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
+      vecGIDToMove.memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
       velocity_block_with_content_list->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
       velocity_block_with_no_content_list->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
       BlocksRequiredMap->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
 
-      BlocksRequired->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
-      BlocksToAdd->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
-      BlocksToRemove->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
-      BlocksToMove->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      // BlocksRequired->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      // BlocksToAdd->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      // BlocksToRemove->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      // BlocksToMove->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      vecGIDRequired.memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      vecGIDToAdd.memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      vecGIDToRemove.memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
+      vecGIDToMove.memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
       velocity_block_with_content_list->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
       velocity_block_with_no_content_list->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
       BlocksRequiredMap->memAdvise(gpuMemAdviseSetAccessedBy,device,stream);
@@ -801,10 +844,10 @@ namespace spatial_cell {
       }
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,velocity_block_with_content_list, 0,gpuMemAttachSingle) );
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,velocity_block_with_no_content_list, 0,gpuMemAttachSingle) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToRemove, 0,gpuMemAttachSingle) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToAdd, 0,gpuMemAttachSingle) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToMove, 0,gpuMemAttachSingle) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequired, 0,gpuMemAttachSingle) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToRemove, 0,gpuMemAttachSingle) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToAdd, 0,gpuMemAttachSingle) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToMove, 0,gpuMemAttachSingle) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequired, 0,gpuMemAttachSingle) );
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequiredMap, 0,gpuMemAttachSingle) );
       // Loop over populations
       for (size_t p=0; p<populations.size(); ++p) {
@@ -814,10 +857,14 @@ namespace spatial_cell {
       // Also call attach functions on all splitvectors and hashmaps
       velocity_block_with_content_list->streamAttach(attachedStream);
       velocity_block_with_no_content_list->streamAttach(attachedStream);
-      BlocksToRemove->streamAttach(attachedStream);
-      BlocksToAdd->streamAttach(attachedStream);
-      BlocksToMove->streamAttach(attachedStream);
-      BlocksRequired->streamAttach(attachedStream);
+      // BlocksToRemove->streamAttach(attachedStream);
+      // BlocksToAdd->streamAttach(attachedStream);
+      // BlocksToMove->streamAttach(attachedStream);
+      // BlocksRequired->streamAttach(attachedStream);
+      vecGIDToRemove.streamAttach(attachedStream);
+      vecGIDToAdd.streamAttach(attachedStream);
+      vecGIDToMove.streamAttach(attachedStream);
+      vecGIDRequired.streamAttach(attachedStream);
       BlocksRequiredMap->streamAttach(attachedStream);
       return;
    }
@@ -833,10 +880,10 @@ namespace spatial_cell {
       attachedStream = 0;
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,velocity_block_with_content_list, 0,gpuMemAttachGlobal) );
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,velocity_block_with_no_content_list, 0,gpuMemAttachGlobal) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToRemove, 0,gpuMemAttachGlobal) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToAdd, 0,gpuMemAttachGlobal) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToMove, 0,gpuMemAttachGlobal) );
-      CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequired, 0,gpuMemAttachGlobal) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToRemove, 0,gpuMemAttachGlobal) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToAdd, 0,gpuMemAttachGlobal) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksToMove, 0,gpuMemAttachGlobal) );
+      // CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequired, 0,gpuMemAttachGlobal) );
       CHK_ERR( gpuStreamAttachMemAsync(attachedStream,BlocksRequiredMap, 0,gpuMemAttachGlobal) );
       // Loop over populations
       for (size_t p=0; p<populations.size(); ++p) {
@@ -846,10 +893,14 @@ namespace spatial_cell {
       // Also call detach functions on all splitvectors and hashmaps
       velocity_block_with_content_list->streamAttach(0,gpuMemAttachGlobal);
       velocity_block_with_no_content_list->streamAttach(0,gpuMemAttachGlobal);
-      BlocksToRemove->streamAttach(0,gpuMemAttachGlobal);
-      BlocksToAdd->streamAttach(0,gpuMemAttachGlobal);
-      BlocksToMove->streamAttach(0,gpuMemAttachGlobal);
-      BlocksRequired->streamAttach(0,gpuMemAttachGlobal);
+      // BlocksToRemove->streamAttach(0,gpuMemAttachGlobal);
+      // BlocksToAdd->streamAttach(0,gpuMemAttachGlobal);
+      // BlocksToMove->streamAttach(0,gpuMemAttachGlobal);
+      // BlocksRequired->streamAttach(0,gpuMemAttachGlobal);
+      vecGIDToRemove.streamAttach(0,gpuMemAttachGlobal);
+      vecGIDToAdd.streamAttach(0,gpuMemAttachGlobal);
+      vecGIDToMove.streamAttach(0,gpuMemAttachGlobal);
+      vecGIDRequired.streamAttach(0,gpuMemAttachGlobal);
       BlocksRequiredMap->streamAttach(0,gpuMemAttachGlobal);
       return;
    }
@@ -897,24 +948,40 @@ namespace spatial_cell {
       size_t newReserve = populations[popID].reservation * BLOCK_ALLOCATION_PADDING;
       gpuStream_t stream = gpu_getStream();
       // Host-side non-pagefaulting approach
-      BlocksRequired->copyMetadata(info_Required,stream,true);
-      BlocksToAdd->copyMetadata(info_toAdd,stream,true);
-      BlocksToRemove->copyMetadata(info_toRemove,stream,true);
-      BlocksToMove->copyMetadata(info_toMove,stream,true);
+      // BlocksRequired->copyMetadata(info_Required,stream,true);
+      // BlocksToAdd->copyMetadata(info_toAdd,stream,true);
+      // BlocksToRemove->copyMetadata(info_toRemove,stream,true);
+      // BlocksToMove->copyMetadata(info_toMove,stream,true);
+      vecGIDRequired.copyMetadata(info_Required,stream);
+      vecGIDToAdd.copyMetadata(info_toAdd,stream);
+      vecGIDToRemove.copyMetadata(info_toRemove,stream);
+      vecGIDToMove.copyMetadata(info_toMove,stream);
       velocity_block_with_content_list->copyMetadata(info_vbwcl,stream,true);
       velocity_block_with_no_content_list->copyMetadata(info_vbwncl,stream,true);
       CHK_ERR( gpuStreamSynchronize(stream) );
       if (info_Required->capacity < reserveSize) {
-         BlocksRequired->reserve(newReserve,true);
+         // BlocksRequired->reserve(newReserve,true);
+         CHK_ERR( gpuFree(BlocksRequired) );
+         vecGIDRequired.reserve(newReserve,true);
+         BlocksRequired = vecGIDRequired.upload();
       }
       if (info_toAdd->capacity < reserveSize) {
-         BlocksToAdd->reserve(newReserve,true);
+         // BlocksToAdd->reserve(newReserve,true);
+         CHK_ERR( gpuFree(BlocksToAdd) );
+         vecGIDToAdd.reserve(newReserve,true);
+         BlocksToAdd = vecGIDToAdd.upload();
       }
       if (info_toRemove->capacity < reserveSize) {
-         BlocksToRemove->reserve(newReserve,true);
+         // BlocksToRemove->reserve(newReserve,true);
+         CHK_ERR( gpuFree(BlocksToRemove) );
+         vecGIDToRemove.reserve(newReserve,true);
+         BlocksToRemove = vecGIDToRemove.upload();
       }
       if (info_toMove->capacity < reserveSize) {
-         BlocksToMove->reserve(newReserve,true);
+         // BlocksToMove->reserve(newReserve,true);
+         CHK_ERR( gpuFree(BlocksToMove) );
+         vecGIDToMove.reserve(newReserve,true);
+         BlocksToMove = vecGIDToMove.upload();
       }
       if (info_vbwcl->capacity < reserveSize) {
          velocity_block_with_content_list->reserve(newReserve,true);
@@ -972,7 +1039,8 @@ namespace spatial_cell {
       phiprof::Timer adjustBlocksTimer {"Adjust velocity blocks"};
       velocity_block_with_content_list->copyMetadata(info_vbwcl,stream,true);
       velocity_block_with_no_content_list->copyMetadata(info_vbwncl,stream,true);
-      BlocksRequired->copyMetadata(info_Required,stream,true);
+      //BlocksRequired->copyMetadata(info_Required,stream,true);
+      vecGIDRequired.copyMetadata(info_Required,stream);
       BlocksRequiredMap->copyMetadata(info_brm, stream,true);
       vmesh::LocalID currSize = populations[popID].vmesh->size(); // Includes stream sync
       const vmesh::LocalID localContentBlocks = info_vbwcl->size;
@@ -1020,10 +1088,14 @@ namespace spatial_cell {
          CHK_ERR( gpuPeekAtLastError() );
          CHK_ERR( gpuStreamSynchronize(stream) );
       }
-      BlocksRequired->clear();
-      BlocksToRemove->clear();
-      BlocksToAdd->clear();
-      BlocksToMove->clear();
+      // BlocksRequired->clear();
+      // BlocksToRemove->clear();
+      // BlocksToAdd->clear();
+      // BlocksToMove->clear();
+      vecGIDRequired.clear();
+      vecGIDToRemove.clear();
+      vecGIDToAdd.clear();
+      vecGIDToMove.clear();
 
       // If we are not deleting any local empty blocks, we can just tag all local
       // no content blocks as required. We still run the halo procedure just to be safe.
@@ -1084,10 +1156,22 @@ namespace spatial_cell {
       reserveSize *= BLOCK_ALLOCATION_FACTOR;
       if (BlocksRequiredCapacity < reserveSize) {
          reserveSize *= BLOCK_ALLOCATION_PADDING/BLOCK_ALLOCATION_FACTOR;
-         BlocksRequired->reserve(reserveSize,true);
-         BlocksToAdd->reserve(reserveSize,true);
-         BlocksToRemove->reserve(reserveSize,true);
-         BlocksToMove->reserve(reserveSize,true);
+         // BlocksRequired->reserve(reserveSize,true);
+         // BlocksToAdd->reserve(reserveSize,true);
+         // BlocksToRemove->reserve(reserveSize,true);
+         // BlocksToMove->reserve(reserveSize,true);
+         CHK_ERR( gpuFree(BlocksRequired) );
+         CHK_ERR( gpuFree(BlocksToAdd) );
+         CHK_ERR( gpuFree(BlocksToRemove) );
+         CHK_ERR( gpuFree(BlocksToMove) );
+         vecGIDRequired.reserve(reserveSize,true);
+         vecGIDToAdd.reserve(reserveSize,true);
+         vecGIDToRemove.reserve(reserveSize,true);
+         vecGIDToMove.reserve(reserveSize,true);
+         BlocksRequired = vecGIDRequired.upload();
+         BlocksToAdd = vecGIDToAdd.upload();
+         BlocksToRemove = vecGIDToRemove.upload();
+         BlocksToMove = vecGIDToMove.upload();
          // int device = gpu_getDevice();
          // BlocksRequired->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
          // BlocksToAdd->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
@@ -1102,10 +1186,14 @@ namespace spatial_cell {
       reserveTimer.stop();
       phiprof::Timer prefetchTimer {"BlocksToXXX prefetch"};
       if (doPrefetches || (BlocksRequiredCapacity < reserveSize)) {
-         BlocksRequired->optimizeGPU(stream,true);
-         BlocksToRemove->optimizeGPU(stream,true);
-         BlocksToAdd->optimizeGPU(stream,true);
-         BlocksToMove->optimizeGPU(stream,true);
+         // BlocksRequired->optimizeGPU(stream,true);
+         // BlocksToRemove->optimizeGPU(stream,true);
+         // BlocksToAdd->optimizeGPU(stream,true);
+         // BlocksToMove->optimizeGPU(stream,true);
+         vecGIDRequired.optimizeGPU(stream);
+         vecGIDToRemove.optimizeGPU(stream);
+         vecGIDToAdd.optimizeGPU(stream);
+         vecGIDToMove.optimizeGPU(stream);
       }
       SSYNC;
       prefetchTimer.stop();
@@ -1187,12 +1275,16 @@ namespace spatial_cell {
       gpuStream_t stream = gpu_getStream();
       //const int nBlocksRequired = BlocksRequired->size();
       // Host-side non-pagefaulting approach
-      BlocksRequired->copyMetadata(info_Required,stream,true);
+      //BlocksRequired->copyMetadata(info_Required,stream,true);
+      vecGIDRequired.copyMetadata(info_Required,stream);
       CHK_ERR( gpuStreamSynchronize(stream) );
       const int nBlocksRequired =  info_Required->size;
 
       const uint nGpuBlocks = nBlocksRequired > GPUBLOCKS ? GPUBLOCKS : nBlocksRequired;
-      BlocksToMove->reserve(nBlocksRequired,true);
+      //BlocksToMove->reserve(nBlocksRequired,true);
+      CHK_ERR( gpuFree(BlocksToMove) );
+      vecGIDToMove.reserve(nBlocksRequired,true);
+      BlocksToMove = vecGIDToMove.upload();
       if (nBlocksRequired>0) {
          CHK_ERR( gpuStreamSynchronize(stream) );
          phiprof::Timer blockMoveTimer {"blocks_to_move_kernel"};
@@ -1227,8 +1319,10 @@ namespace spatial_cell {
 
       phiprof::Timer sizesTimer {"Block lists sizes"};
       // Use copymetadata for these
-      BlocksToAdd->copyMetadata(info_toAdd,stream,true);
-      BlocksToRemove->copyMetadata(info_toRemove,stream,true);
+      // BlocksToAdd->copyMetadata(info_toAdd,stream,true);
+      // BlocksToRemove->copyMetadata(info_toRemove,stream,true);
+      vecGIDToAdd.copyMetadata(info_toAdd,stream);
+      vecGIDToRemove.copyMetadata(info_toRemove,stream);
       //BlocksToMove->copyMetadata(info_toMove,stream,true); // not used
       CHK_ERR( gpuStreamSynchronize(stream) ); // To ensure all previous kernels have finished
       const vmesh::LocalID nBlocksBeforeAdjust = populations[popID].vmesh->size(); // includes a stream sync for the above

@@ -55,7 +55,7 @@ Spatial cell class for Vlasiator that supports a variable number of velocity blo
 #endif
 
 typedef Parameters P; // Heeded in numerous files which include this one
-
+using GIDvector = split::SplitVector<vmesh::GlobalID>;
 /*!
 Used as an error from functions returning velocity cells or
 as a cell that would be outside of the velocity block
@@ -409,7 +409,7 @@ namespace spatial_cell {
       const vmesh::VelocityMesh *vmesh,
       Real* parameters,
       Realf* cellBlockData,
-      const split::SplitVector<vmesh::GlobalID>* blocks,
+      const GIDvector* blocks,
       const fileReal* avgBuffer,
       const uint nBlocks
       ) {
@@ -575,7 +575,7 @@ namespace spatial_cell {
 
       uint64_t ioLocalCellId;                                                 /**< Local cell ID used for IO, not needed elsewhere
                                                                                * and thus not being kept up-to-date.*/
-      std::array<Realf*,MAX_NEIGHBORS_PER_DIM> neighbor_block_data;       /**< Pointers for translation operator. We can point to neighbor
+      std::array<Realf*,MAX_NEIGHBORS_PER_DIM> neighbor_block_data;           /**< Pointers for translation operator. We can point to neighbor
                                                                                * cell block data. We do not allocate memory for the pointer.*/
       std::array<vmesh::LocalID,MAX_NEIGHBORS_PER_DIM> neighbor_number_of_blocks;
       std::map<int,std::set<int>> face_neighbor_ranks;
@@ -584,16 +584,16 @@ namespace spatial_cell {
       uint sysBoundaryLayer;                                                  /**< Layers counted from closest systemBoundary. If 0 then it has not
                                                                                * been computed. First sysboundary layer is layer 1.*/
       int sysBoundaryLayerNew;
-      split::SplitVector<vmesh::GlobalID> *velocity_block_with_content_list;          /**< List of existing cells with content, only up-to-date after call to update_has_content().*/
+      GIDvector *velocity_block_with_content_list;                            /**< List of existing cells with content, only up-to-date after
+                                                                                 call to update_has_content().*/
+      GIDvector *velocity_block_with_no_content_list;                         /**< List of existing cells with no content, only up-to-date after
+                                                                                 call to update_has_content. Not transferred over MPI, so invalid on remote cells.*/ 
       vmesh::LocalID velocity_block_with_content_list_size;                   /**< Size of vector. Needed for MPI communication of size before actual list transfer.*/
-      vmesh::GlobalID *gpu_velocity_block_with_content_list_buffer;  /**< Pointer to device-memory buffer of VB with content list */
-      split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list;
-
-      /**< List of existing cells with no content, only up-to-date after call to update_has_content. This is also never transferred over MPI, so is invalid on remote cells.*/
+      vmesh::GlobalID *gpu_velocity_block_with_content_list_buffer;           /**< Pointer to device-memory buffer of VB with content list */
 
       Realf* gpu_rhoLossAdjust;
-      split::SplitVector<vmesh::GlobalID> *BlocksToRemove, *BlocksToAdd, *BlocksToMove; /**< Lists of blocks to change on GPU device */
-      split::SplitVector<vmesh::GlobalID> *BlocksRequired;
+      GIDvector vecGIDToRemove, vecGIDToAdd, vecGIDToMove, vecGIDRequired;   /**< Lists of blocks to change on GPU device */
+      GIDvector *BlocksToRemove, *BlocksToAdd, *BlocksToMove, *BlocksRequired;   /**< device pointers to vectors */
       Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *BlocksRequiredMap;
 
       split::SplitInfo *info_vbwcl, *info_vbwncl, *info_toRemove, *info_toAdd, *info_toMove, *info_Required;
@@ -1428,19 +1428,20 @@ namespace spatial_cell {
 
       const vmesh::LocalID VBC_LID = populations[popID].blockContainer->push_back();
 
-      // // Validation
-      // if (populations[popID].vmesh->getLocalID(block) != VBC_LID) {
-      //    stringstream ss;
-      //    ss<<"Error adding block: vmesh->getLID("<<block<<") returns "<<populations[popID].vmesh->getLocalID(block);
-      //    ss<<" whereas VBC provided LID "<<VBC_LID<<"!";
-      //    std::cerr<<ss.str();
-      // }
-      // if (populations[popID].vmesh->getGlobalID(VBC_LID) != block) {
-      //    stringstream ss;
-      //    ss<<"Error adding block: vmesh->getGID("<<VBC_LID<<") returns "<<populations[popID].vmesh->getGlobalID(VBC_LID);
-      //    ss<<" whereas we were trying to add GID "<<block<<"!";
-      //    std::cerr<<ss.str();
-      // }
+      #ifdef DEBUG_SPATIAL_CELL
+      if (populations[popID].vmesh->getLocalID(block) != VBC_LID) {
+         stringstream ss;
+         ss<<"Error adding block: vmesh->getLID("<<block<<") returns "<<populations[popID].vmesh->getLocalID(block);
+         ss<<" whereas VBC provided LID "<<VBC_LID<<"!";
+         std::cerr<<ss.str();
+      }
+      if (populations[popID].vmesh->getGlobalID(VBC_LID) != block) {
+         stringstream ss;
+         ss<<"Error adding block: vmesh->getGID("<<VBC_LID<<") returns "<<populations[popID].vmesh->getGlobalID(VBC_LID);
+         ss<<" whereas we were trying to add GID "<<block<<"!";
+         std::cerr<<ss.str();
+      }
+      #endif
 
       // Set block parameters:
       Real* parameters = get_block_parameters(VBC_LID,popID);
