@@ -963,25 +963,25 @@ namespace spatial_cell {
          // BlocksRequired->reserve(newReserve,true);
          CHK_ERR( gpuFree(BlocksRequired) );
          vecGIDRequired.reserve(newReserve,true);
-         BlocksRequired = vecGIDRequired.upload();
+         BlocksRequired = vecGIDRequired.upload(stream);
       }
       if (info_toAdd->capacity < reserveSize) {
          // BlocksToAdd->reserve(newReserve,true);
          CHK_ERR( gpuFree(BlocksToAdd) );
          vecGIDToAdd.reserve(newReserve,true);
-         BlocksToAdd = vecGIDToAdd.upload();
+         BlocksToAdd = vecGIDToAdd.upload(stream);
       }
       if (info_toRemove->capacity < reserveSize) {
          // BlocksToRemove->reserve(newReserve,true);
          CHK_ERR( gpuFree(BlocksToRemove) );
          vecGIDToRemove.reserve(newReserve,true);
-         BlocksToRemove = vecGIDToRemove.upload();
+         BlocksToRemove = vecGIDToRemove.upload(stream);
       }
       if (info_toMove->capacity < reserveSize) {
          // BlocksToMove->reserve(newReserve,true);
          CHK_ERR( gpuFree(BlocksToMove) );
          vecGIDToMove.reserve(newReserve,true);
-         BlocksToMove = vecGIDToMove.upload();
+         BlocksToMove = vecGIDToMove.upload(stream);
       }
       if (info_vbwcl->capacity < reserveSize) {
          velocity_block_with_content_list->reserve(newReserve,true);
@@ -1168,10 +1168,10 @@ namespace spatial_cell {
          vecGIDToAdd.reserve(reserveSize,true);
          vecGIDToRemove.reserve(reserveSize,true);
          vecGIDToMove.reserve(reserveSize,true);
-         BlocksRequired = vecGIDRequired.upload();
-         BlocksToAdd = vecGIDToAdd.upload();
-         BlocksToRemove = vecGIDToRemove.upload();
-         BlocksToMove = vecGIDToMove.upload();
+         BlocksRequired = vecGIDRequired.upload(stream);
+         BlocksToAdd = vecGIDToAdd.upload(stream);
+         BlocksToRemove = vecGIDToRemove.upload(stream);
+         BlocksToMove = vecGIDToMove.upload(stream);
          // int device = gpu_getDevice();
          // BlocksRequired->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
          // BlocksToAdd->memAdvise(gpuMemAdviseSetPreferredLocation,device,stream);
@@ -1195,9 +1195,11 @@ namespace spatial_cell {
          vecGIDToAdd.optimizeGPU(stream);
          vecGIDToMove.optimizeGPU(stream);
       }
-      SSYNC;
+      CHK_ERR( gpuStreamSynchronize(stream) );
       prefetchTimer.stop();
 
+      std::cerr<<"size "<<vecGIDRequired.size()<<" capacity "<<vecGIDRequired.capacity()<<" localContentBlocks "<<localContentBlocks<<std::endl;
+      
       // Extract list and count of all required blocks (content or with neighbors in spatial or velocity space)
       phiprof::Timer gatherTimer {"Gather blocks required"};
       const vmesh::LocalID nBlocksRequired = BlocksRequiredMap->extractAllKeys(*BlocksRequired,stream,false);
@@ -1284,7 +1286,7 @@ namespace spatial_cell {
       //BlocksToMove->reserve(nBlocksRequired,true);
       CHK_ERR( gpuFree(BlocksToMove) );
       vecGIDToMove.reserve(nBlocksRequired,true);
-      BlocksToMove = vecGIDToMove.upload();
+      BlocksToMove = vecGIDToMove.upload(stream);
       if (nBlocksRequired>0) {
          CHK_ERR( gpuStreamSynchronize(stream) );
          phiprof::Timer blockMoveTimer {"blocks_to_move_kernel"};

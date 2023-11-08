@@ -55,7 +55,6 @@ Spatial cell class for Vlasiator that supports a variable number of velocity blo
 #endif
 
 typedef Parameters P; // Heeded in numerous files which include this one
-using GIDvector = split::SplitVector<vmesh::GlobalID>;
 /*!
 Used as an error from functions returning velocity cells or
 as a cell that would be outside of the velocity block
@@ -409,7 +408,7 @@ namespace spatial_cell {
       const vmesh::VelocityMesh *vmesh,
       Real* parameters,
       Realf* cellBlockData,
-      const GIDvector* blocks,
+      const split::SplitVector<vmesh::GlobalID>* blocks,
       const fileReal* avgBuffer,
       const uint nBlocks
       ) {
@@ -584,16 +583,16 @@ namespace spatial_cell {
       uint sysBoundaryLayer;                                                  /**< Layers counted from closest systemBoundary. If 0 then it has not
                                                                                * been computed. First sysboundary layer is layer 1.*/
       int sysBoundaryLayerNew;
-      GIDvector *velocity_block_with_content_list;                            /**< List of existing cells with content, only up-to-date after
+      split::SplitVector<vmesh::GlobalID> *velocity_block_with_content_list;                            /**< List of existing cells with content, only up-to-date after
                                                                                  call to update_has_content().*/
-      GIDvector *velocity_block_with_no_content_list;                         /**< List of existing cells with no content, only up-to-date after
+      split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list;                         /**< List of existing cells with no content, only up-to-date after
                                                                                  call to update_has_content. Not transferred over MPI, so invalid on remote cells.*/ 
       vmesh::LocalID velocity_block_with_content_list_size;                   /**< Size of vector. Needed for MPI communication of size before actual list transfer.*/
       vmesh::GlobalID *gpu_velocity_block_with_content_list_buffer;           /**< Pointer to device-memory buffer of VB with content list */
 
       Realf* gpu_rhoLossAdjust;
-      GIDvector vecGIDToRemove, vecGIDToAdd, vecGIDToMove, vecGIDRequired;   /**< Lists of blocks to change on GPU device */
-      GIDvector *BlocksToRemove, *BlocksToAdd, *BlocksToMove, *BlocksRequired;   /**< device pointers to vectors */
+      split::SplitVector<vmesh::GlobalID> vecGIDToRemove, vecGIDToAdd, vecGIDToMove, vecGIDRequired;   /**< Lists of blocks to change on GPU device */
+      split::SplitVector<vmesh::GlobalID> *BlocksToRemove, *BlocksToAdd, *BlocksToMove, *BlocksRequired;   /**< device pointers to vectors */
       Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *BlocksRequiredMap;
 
       split::SplitInfo *info_vbwcl, *info_vbwncl, *info_toRemove, *info_toAdd, *info_toMove, *info_Required;
