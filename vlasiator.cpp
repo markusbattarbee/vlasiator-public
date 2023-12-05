@@ -1014,7 +1014,8 @@ int main(int argn,char* args[]) {
       
       //get local cells
       const vector<CellID>& cells = getLocalCells();
-
+      const int FSgridSize = technicalGrid.getSize();
+      
       //compute how many spatial cells we solve for this step
       computedCells=0;
       for(size_t i=0; i<cells.size(); i++) {
@@ -1074,36 +1075,37 @@ int main(int argn,char* args[]) {
          addTimedBarrier("barrier-boundary-conditions");
       }
 
-      phiprof::Timer spatialSpaceTimer {"Spatial-space"};
-      if( P::propagateVlasovTranslation) {
-         calculateSpatialTranslation(mpiGrid,P::dt);
-      } else {
-         calculateSpatialTranslation(mpiGrid,0.0);
+      // Only run these on DCCRG tasks
+      if (computedTotalCells > 0) {
+         phiprof::Timer spatialSpaceTimer {"Spatial-space"};
+         if( P::propagateVlasovTranslation) {
+            calculateSpatialTranslation(mpiGrid,P::dt);
+         } else {
+            calculateSpatialTranslation(mpiGrid,0.0);
+         }
+         spatialSpaceTimer.stop(computedCells, "Cells");
+         // Apply boundary conditions
+         if (P::propagateVlasovTranslation || P::propagateVlasovAcceleration ) {
+            phiprof::Timer timer {"Update system boundaries (Vlasov post-translation)"};
+            sysBoundaryContainer.applySysBoundaryVlasovConditions(mpiGrid, P::t+0.5*P::dt, false);
+            timer.stop();
+            //addTimedBarrier("barrier-boundary-conditions");
+         }
+      
+         phiprof::Timer momentsTimer {"Compute interp moments"};
+         calculateInterpolatedVelocityMoments(
+            mpiGrid,
+            CellParams::RHOM_DT2,
+            CellParams::VX_DT2,
+            CellParams::VY_DT2,
+            CellParams::VZ_DT2,
+            CellParams::RHOQ_DT2,
+            CellParams::P_11_DT2,
+            CellParams::P_22_DT2,
+            CellParams::P_33_DT2
+            );
+         momentsTimer.stop();
       }
-      spatialSpaceTimer.stop(computedCells, "Cells");
-      
-      // Apply boundary conditions
-      if (P::propagateVlasovTranslation || P::propagateVlasovAcceleration ) {
-         phiprof::Timer timer {"Update system boundaries (Vlasov post-translation)"};
-         sysBoundaryContainer.applySysBoundaryVlasovConditions(mpiGrid, P::t+0.5*P::dt, false);
-         timer.stop();
-         addTimedBarrier("barrier-boundary-conditions");
-      }
-      
-      phiprof::Timer momentsTimer {"Compute interp moments"};
-      calculateInterpolatedVelocityMoments(
-         mpiGrid,
-         CellParams::RHOM_DT2,
-         CellParams::VX_DT2,
-         CellParams::VY_DT2,
-         CellParams::VZ_DT2,
-         CellParams::RHOQ_DT2,
-         CellParams::P_11_DT2,
-         CellParams::P_22_DT2,
-         CellParams::P_33_DT2
-      );
-      momentsTimer.stop();
-      
       // Propagate fields forward in time by dt. This needs to be done before the
       // moments for t + dt are computed (field uses t and t+0.5dt)
       if (P::propagateField) {
@@ -1115,26 +1117,28 @@ int main(int argn,char* args[]) {
          feedMomentsIntoFsGrid(mpiGrid, cells, momentsGrid, technicalGrid, false);
          feedMomentsIntoFsGrid(mpiGrid, cells, momentsDt2Grid, technicalGrid, true);
          couplingInTimer.stop();
-         
-         propagateFields(
-            perBGrid,
-            perBDt2Grid,
-            EGrid,
-            EDt2Grid,
-            EHallGrid,
-            EGradPeGrid,
-            momentsGrid,
-            momentsDt2Grid,
-            dPerBGrid,
-            dMomentsGrid,
-            BgBGrid,
-            volGrid,
-            technicalGrid,
-            sysBoundaryContainer,
-            P::dt,
-            P::fieldSolverSubcycles
-         );
 
+         // Only propagate fields on those tasks which have FSgrids active
+         if (FSgridSize > 0) {
+            propagateFields(
+               perBGrid,
+               perBDt2Grid,
+               EGrid,
+               EDt2Grid,
+               EHallGrid,
+               EGradPeGrid,
+               momentsGrid,
+               momentsDt2Grid,
+               dPerBGrid,
+               dMomentsGrid,
+               BgBGrid,
+               volGrid,
+               technicalGrid,
+               sysBoundaryContainer,
+               P::dt,
+               P::fieldSolverSubcycles
+               );
+         }
          phiprof::Timer getFieldsTimer {"getFieldsFromFsGrid"};
          // Copy results back from fsgrid.
          volGrid.updateGhostCells();
@@ -1142,7 +1146,7 @@ int main(int argn,char* args[]) {
          getFieldsFromFsGrid(volGrid, BgBGrid, EGradPeGrid, technicalGrid, mpiGrid, cells);
          getFieldsTimer.stop();
          propagateTimer.stop(cells.size(),"SpatialCells");
-         addTimedBarrier("barrier-after-field-solver");
+         //addTimedBarrier("barrier-after-field-solver");
       }
       
       if(FieldTracing::fieldTracingParameters.useCache) {
@@ -1185,40 +1189,42 @@ int main(int argn,char* args[]) {
          }
       }
       
-      phiprof::Timer vspaceTimer {"Velocity-space"};
-      if ( P::propagateVlasovAcceleration ) {
-         calculateAcceleration(mpiGrid,P::dt);
-         addTimedBarrier("barrier-after-ad just-blocks");
-      } else {
-         //zero step to set up moments _v
-         calculateAcceleration(mpiGrid, 0.0);
-      }
-      vspaceTimer.stop(computedCells, "Cells");
-      addTimedBarrier("barrier-after-acceleration");
+      // Only run these on DCCRG tasks
+      if (computedTotalCells > 0) {
+         phiprof::Timer vspaceTimer {"Velocity-space"};
+         if ( P::propagateVlasovAcceleration ) {
+            calculateAcceleration(mpiGrid,P::dt);
+            //addTimedBarrier("barrier-after-ad just-blocks");
+         } else {
+            //zero step to set up moments _v
+            calculateAcceleration(mpiGrid, 0.0);
+         }
+         vspaceTimer.stop(computedCells, "Cells");
+         //addTimedBarrier("barrier-after-acceleration");
       
-      if (P::propagateVlasovTranslation || P::propagateVlasovAcceleration ) {
-         phiprof::Timer timer {"Update system boundaries (Vlasov post-acceleration)"};
-         sysBoundaryContainer.applySysBoundaryVlasovConditions(mpiGrid, P::t + 0.5 * P::dt, true);
-         timer.stop();
-         addTimedBarrier("barrier-boundary-conditions");
-      }
+         if (P::propagateVlasovTranslation || P::propagateVlasovAcceleration ) {
+            phiprof::Timer timer {"Update system boundaries (Vlasov post-acceleration)"};
+            sysBoundaryContainer.applySysBoundaryVlasovConditions(mpiGrid, P::t + 0.5 * P::dt, true);
+            timer.stop();
+            //addTimedBarrier("barrier-boundary-conditions");
+         }
       
-      momentsTimer.start();
-      // *here we compute rho and rho_v for timestep t + dt, so next
-      // timestep * //
-      calculateInterpolatedVelocityMoments(
-         mpiGrid,
-         CellParams::RHOM,
-         CellParams::VX,
-         CellParams::VY,
-         CellParams::VZ,
-         CellParams::RHOQ,
-         CellParams::P_11,
-         CellParams::P_22,
-         CellParams::P_33
-      );
-      momentsTimer.stop();
-
+         momentsTimer.start();
+         // *here we compute rho and rho_v for timestep t + dt, so next
+         // timestep * //
+         calculateInterpolatedVelocityMoments(
+            mpiGrid,
+            CellParams::RHOM,
+            CellParams::VX,
+            CellParams::VY,
+            CellParams::VZ,
+            CellParams::RHOQ,
+            CellParams::P_11,
+            CellParams::P_22,
+            CellParams::P_33
+            );
+         momentsTimer.stop();
+      }
       propagateTimer.stop(computedCells,"Cells");
       
       phiprof::Timer endStepTimer {"Project endTimeStep"};
