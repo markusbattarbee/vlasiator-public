@@ -318,16 +318,13 @@ void calculateDerivativesSimple(
    SysBoundary& sysBoundaries,
    cint& RKCase,
    const bool communicateMoments) {
-   int timer;
    //const std::array<int, 3> gridDims = technicalGrid.getLocalSize();
    const int* gridDims = &technicalGrid.getLocalSize()[0];
    const size_t N_cells = gridDims[0]*gridDims[1]*gridDims[2];
+   phiprof::Timer derivativesTimer {"Calculate face derivatives"};
+   int computeTimerId {phiprof::initializeTimer("FS derivatives compute cells")};
 
-   phiprof::start("Calculate face derivatives");
-
-   timer=phiprof::initializeTimer("MPI","MPI");
-   phiprof::start(timer);
-
+   phiprof::Timer mpiTimer {"FS derivatives ghost updates MPI", {"MPI"}};
    switch (RKCase) {
     case RK_ORDER1:
       // Means initialising the solver as well as RK_ORDER1
@@ -361,13 +358,12 @@ void calculateDerivativesSimple(
       cerr << __FILE__ << ":" << __LINE__ << " Went through switch, this should not happen." << endl;
       abort();
    }
-
-   phiprof::stop(timer);
+   mpiTimer.stop();
 
    // Calculate derivatives
    #pragma omp parallel
    {
-      phiprof::start("FS derivatives compute cells");
+      phiprof::Timer computeTimer {computeTimerId};
       #pragma omp for collapse(2)
       for (int k=0; k<gridDims[2]; k++) {
          for (int j=0; j<gridDims[1]; j++) {
@@ -381,10 +377,10 @@ void calculateDerivativesSimple(
             }
          }
       }
-      phiprof::stop("FS derivatives compute cells");
+      computeTimer.stop(N_cells, "Spatial Cells");
    }
 
-   phiprof::stop("Calculate face derivatives",N_cells,"Spatial Cells");
+   derivativesTimer.stop(N_cells, "Spatial Cells");
 }
 
 /*! \brief Low-level spatial derivatives calculation.
@@ -491,24 +487,20 @@ void calculateBVOLDerivativesSimple(
    FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid,
    SysBoundary& sysBoundaries
 ) {
-   int timer;
    //const std::array<int, 3> gridDims = technicalGrid.getLocalSize();
    const int* gridDims = &technicalGrid.getLocalSize()[0];
    const size_t N_cells = gridDims[0]*gridDims[1]*gridDims[2];
+   phiprof::Timer derivsTimer {"Calculate volume derivatives"};
+   int computeTimerId {phiprof::initializeTimer("FS derivatives BVOL compute cells")};
 
-   phiprof::start("Calculate volume derivatives");
-
-   timer=phiprof::initializeTimer("Start comm","MPI");
-   phiprof::start(timer);
+   phiprof::Timer commTimer {"BVOL derivatives ghost updates MPI", {"MPI"}};
    volGrid.updateGhostCells();
-
-   phiprof::stop(timer,N_cells,"Spatial Cells");
-
+   commTimer.stop(N_cells,"Spatial Cells");
 
    // Calculate derivatives
    #pragma omp parallel
    {
-      phiprof::start("FS derivatives BVOL");
+      phiprof::Timer computeTimer {computeTimerId};
       #pragma omp for collapse(2)
       for (int k=0; k<gridDims[2]; k++) {
          for (int j=0; j<gridDims[1]; j++) {
@@ -520,10 +512,10 @@ void calculateBVOLDerivativesSimple(
             }
          }
       }
-      phiprof::stop("FS derivatives BVOL");
+      computeTimer.stop(N_cells,"Spatial Cells");
    }
 
-   phiprof::stop("Calculate volume derivatives",N_cells,"Spatial Cells");
+   derivsTimer.stop(N_cells,"Spatial Cells");
 }
 
 /*! \brief Low-level curvature calculation.
@@ -642,21 +634,19 @@ void calculateCurvatureSimple(
    FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid,
    SysBoundary& sysBoundaries
 ) {
-   int timer;
    //const std::array<int, 3> gridDims = technicalGrid.getLocalSize();
    const int* gridDims = &technicalGrid.getLocalSize()[0];
    const size_t N_cells = gridDims[0]*gridDims[1]*gridDims[2];
+   phiprof::Timer curvatureTimer {"Calculate curvature"};
+   int computeTimerId {phiprof::initializeTimer("Calculate curvature compute cells")};
 
-   phiprof::start("Calculate curvature");
-
-   timer=phiprof::initializeTimer("Start comm","MPI");
-   phiprof::start(timer);
+   phiprof::Timer commTimer {"Calculate curvature ghost updates MPI", {"MPI"}};
    volGrid.updateGhostCells();
-   phiprof::stop(timer,N_cells,"Spatial Cells");
+   commTimer.stop(N_cells,"Spatial Cells");
 
    #pragma omp parallel
    {
-      phiprof::start("FS derivatives curvature");
+      phiprof::Timer computeTimer {computeTimerId};
       #pragma omp for collapse(2)
       for (int k=0; k<gridDims[2]; k++) {
          for (int j=0; j<gridDims[1]; j++) {
@@ -668,17 +658,32 @@ void calculateCurvatureSimple(
             }
          }
       }
-      phiprof::stop("FS derivatives curvature");
+      computeTimer.stop(N_cells, "Spatial Cells");
    }
-   phiprof::stop("Calculate curvature",N_cells,"Spatial Cells");
+
+   curvatureTimer.stop(N_cells, "Spatial Cells");
 }
 
 /*! \brief Returns perturbed volumetric B of cell
  *
  */
-static std::array<Real, 3> getPerB(SpatialCell* cell)
+static std::array<Real, 3> getPerBVol(SpatialCell* cell)
 {
    return std::array<Real, 3> { {cell->parameters[CellParams::PERBXVOL], cell->parameters[CellParams::PERBYVOL], cell->parameters[CellParams::PERBZVOL]} };
+}
+
+/*! \brief Returns volumetric B of cell
+ *
+ */
+static std::array<Real, 3> getBVol(SpatialCell* cell)
+{
+   return std::array<Real, 3> { 
+      {
+         cell->parameters[CellParams::BGBXVOL] + cell->parameters[CellParams::PERBXVOL], 
+         cell->parameters[CellParams::BGBYVOL] + cell->parameters[CellParams::PERBYVOL], 
+         cell->parameters[CellParams::BGBZVOL] + cell->parameters[CellParams::PERBZVOL]
+      } 
+   };
 }
 
 /*! \brief Calculates momentum density of cell
@@ -690,13 +695,13 @@ static std::array<Real, 3> getMomentumDensity(SpatialCell* cell)
    return std::array<Real, 3> { {rho * cell->parameters[CellParams::VX], rho * cell->parameters[CellParams::VY], rho * cell->parameters[CellParams::VZ]} };
 }
 
-/*! \brief Calculates energy density for spatial cell with only perturbated magnetic field
+/*! \brief Calculates energy density for spatial cell
  *
  */
-static Real calculateU1(SpatialCell* cell)
+static Real calculateU(SpatialCell* cell)
 {
    std::array<Real, 3> p = getMomentumDensity(cell);
-   std::array<Real, 3> B = getPerB(cell);
+   std::array<Real, 3> B = getBVol(cell);
    return (pow(p[0], 2) + pow(p[1], 2) + pow(p[2], 2)) / (2.0 * cell->parameters[CellParams::RHOM]) + (pow(B[0], 2) + pow(B[1], 2) + pow(B[2], 2)) / (2.0 * physicalconstants::MU_0);
 }
 
@@ -718,14 +723,14 @@ void calculateScaledDeltas(
    Real dB {0};
 
    Real myRho {cell->parameters[CellParams::RHOM]};
-   Real myU {calculateU1(cell)};
+   Real myU {calculateU(cell)};
    std::array<Real, 3> myP = getMomentumDensity(cell);
-   std::array<Real, 3> myB = getPerB(cell);
+   std::array<Real, 3> myB = getBVol(cell);
    for (SpatialCell* neighbor : neighbors) {
       Real otherRho = neighbor->parameters[CellParams::RHOM];
-      Real otherU = calculateU1(neighbor);
+      Real otherU = calculateU(neighbor);
       std::array<Real, 3> otherP = getMomentumDensity(neighbor);
-      std::array<Real, 3> otherB = getPerB(neighbor);
+      std::array<Real, 3> otherB = getBVol(neighbor);
       Real deltaBsq = pow(myB[0] - otherB[0], 2) + pow(myB[1] - otherB[1], 2) + pow(myB[2] - otherB[2], 2);
 
       // Assignment intentional
@@ -734,27 +739,20 @@ void calculateScaledDeltas(
       }
       if (Real maxU = std::max(myU, otherU)) {
          dU = std::max(fabs(myU - otherU) / maxU, dU);
-         dPsq = std::max((pow(myP[0] - otherP[0], 2) + pow(myP[1] - otherP[1], 2) + pow(myP[2] - otherP[2], 2)) / (2 * myRho * maxU), dPsq) / 4.0;
-         dBsq = std::max(deltaBsq / (2 * physicalconstants::MU_0 * maxU), dBsq) / 4.0;
+         dPsq = std::max((pow(myP[0] - otherP[0], 2) + pow(myP[1] - otherP[1], 2) + pow(myP[2] - otherP[2], 2)) / (2 * myRho * maxU), dPsq);
+         dBsq = std::max(deltaBsq / (2 * physicalconstants::MU_0 * maxU), dBsq);
       }
       if(Real maxB = sqrt(std::max(pow(myB[0], 2) + pow(myB[1], 2) + pow(myB[2], 2), pow(otherB[0], 2) + pow(otherB[1], 2) + pow(otherB[2], 2)))) {
-         dB = std::max(sqrt(deltaBsq) / maxB, dB) / 2.0;
+         dB = std::max(sqrt(deltaBsq) / maxB, dB);
       }
    }
-
-   Real alpha = dRho;
-   if (dU > alpha) {
-      alpha = dU;
-   }
-   if (dPsq > alpha) {
-      alpha = dPsq;
-   }
-   if (dBsq > alpha) {
-      alpha = dBsq;
-   }
-   if (dB > alpha) {
-      alpha = dB;
-   }
+   
+   Real alpha {0.0};
+   alpha = std::max(alpha, dRho);
+   alpha = std::max(alpha, dU);
+   alpha = std::max(alpha, dPsq);
+   alpha = std::max(alpha, dBsq);
+   alpha = std::max(alpha, dB);
 
    Real dBXdy {cell->derivativesBVOL[bvolderivatives::dPERBXVOLdy]};
    Real dBXdz {cell->derivativesBVOL[bvolderivatives::dPERBXVOLdz]};
@@ -764,6 +762,7 @@ void calculateScaledDeltas(
    Real dBZdy {cell->derivativesBVOL[bvolderivatives::dPERBZVOLdy]};
 
    // Note missing factor of mu_0, since we want B and J in same units later
+   myB = getPerBVol(cell); // Consider using total B
    std::array<Real, 3> myJ = {dBZdy - dBYdz, dBXdz - dBZdx, dBYdx - dBXdy};
    Real BdotJ {0.0};
    Real Bsq {0.0};
@@ -787,7 +786,7 @@ void calculateScaledDeltas(
    cell->parameters[CellParams::AMR_DBSQ] = dBsq;
    cell->parameters[CellParams::AMR_DB] = dB;
    cell->parameters[CellParams::AMR_ALPHA] = alpha;
-   cell->parameters[CellParams::AMR_JPERB] = J / Bperp;
+   cell->parameters[CellParams::AMR_JPERB] = J / (Bperp + EPS);   // Epsilon in denominator so we don't get infinities
 }
 
 /*! \brief High-level scaled gradient calculation wrapper function.
@@ -800,22 +799,19 @@ void calculateScaledDeltasSimple(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
 {
    const vector<CellID>& cells = getLocalCells();
    int N_cells = cells.size();
-   int timer;
-   phiprof::start("Calculate volume gradients");
+   phiprof::Timer gradientsTimer {"Calculate volume gradients"};
+   int computeTimerId {phiprof::initializeTimer("Calculate volume gradients compute cells")};
 
-   timer=phiprof::initializeTimer("Start comm","MPI");
-   phiprof::start(timer);
-
+   phiprof::Timer commTimer {"Calculate volume gradients ghost updates MPI", {"MPI"}};
    // We only need nearest neighbourhood and spatial data here
    SpatialCell::set_mpi_transfer_type(Transfer::ALL_SPATIAL_DATA);
    mpiGrid.update_copies_of_remote_neighbors(NEAREST_NEIGHBORHOOD_ID);
-
-   phiprof::stop(timer,N_cells,"Spatial Cells");
+   commTimer.stop(N_cells,"Spatial Cells");
 
    // Calculate derivatives
    #pragma omp parallel
    {
-      phiprof::start("FS derivatives scaled deltas");
+      phiprof::Timer computeTimer {computeTimerId};
       #pragma omp for
       for (uint i = 0; i < cells.size(); ++i) {
          CellID id = cells[i];
@@ -826,8 +822,8 @@ void calculateScaledDeltasSimple(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geome
          }
          calculateScaledDeltas(cell, neighbors);
       }
-      phiprof::stop("FS derivatives scaled deltas");
+      computeTimer.stop(N_cells,"Spatial Cells");
    }
 
-   phiprof::stop("Calculate volume gradients",N_cells,"Spatial Cells");
+   gradientsTimer.stop(N_cells,"Spatial Cells");
 }
