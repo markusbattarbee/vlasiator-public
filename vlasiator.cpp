@@ -1209,7 +1209,7 @@ int main(int argn,char* args[]) {
             //addTimedBarrier("barrier-boundary-conditions");
          }
       
-         momentsTimer.start();
+         phiprof::Timer momentsTimer {"Compute interp moments"};
          // *here we compute rho and rho_v for timestep t + dt, so next
          // timestep * //
          calculateInterpolatedVelocityMoments(
