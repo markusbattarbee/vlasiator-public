@@ -19,13 +19,14 @@ using namespace spatial_cell;
 // Vectors with same i,j,k coordinates, but in different spatial cells, are consequtive
 #define i_trans_ps_blockv(planeVectorIndex, planeIndex, blockIndex) ( (blockIndex) + VLASOV_STENCIL_WIDTH  +  ( (planeVectorIndex) + (planeIndex) * VEC_PER_PLANE ) * ( 1 + 2 * VLASOV_STENCIL_WIDTH)  )
 
+#define i_trans_ps_blockv_pencil(planeVectorIndex, planeIndex, blockIndex, lengthOfPencil) ( (blockIndex) + VLASOV_STENCIL_WIDTH  +  ( (planeVectorIndex) + (planeIndex) * VEC_PER_PLANE ) * ( lengthOfPencil + 2 * VLASOV_STENCIL_WIDTH) )
+
 // indices in padded target block, which is of type Vec with VECL
 // element sin each vector. b_k is the block index in z direction in
 // ordinary space, i,j,k are the cell ids inside on block (i in vector
 // elements).
 #define i_trans_pt_blockv(planeVectorIndex, planeIndex, blockIndex)  ( planeVectorIndex + planeIndex * VEC_PER_PLANE + (blockIndex + 1) * VEC_PER_BLOCK)
 
-#define i_trans_ps_blockv_pencil(planeVectorIndex, planeIndex, blockIndex, lengthOfPencil) ( (blockIndex) + VLASOV_STENCIL_WIDTH  +  ( (planeVectorIndex) + (planeIndex) * VEC_PER_PLANE ) * ( lengthOfPencil + 2 * VLASOV_STENCIL_WIDTH) )
 
 
 bool check_skip_remapping(Vec* values) {
@@ -67,13 +68,9 @@ void propagatePencil(
    // In fact propagating to > 1 neighbor will give an error
    // Also defined in the calling function for the allocation of targetValues
    const uint nTargetNeighborsPerPencil = 1;
-
-   
    for (uint i = 0; i < (lengthOfPencil + 2 * nTargetNeighborsPerPencil) * WID3 / VECL; i++) {
-      
       // init target_values
       targetValues[i] = Vec(0.0);
-      
    }
    
    // Go from 0 to length here to propagate all the cells in the pencil
@@ -167,7 +164,7 @@ bool copy_trans_block_data_amr(
     const vmesh::GlobalID blockGID,
     int lengthOfPencil,
     Vec* values,
-    const unsigned char* const cellid_transpose,
+   const unsigned char* const cellid_transpose,
     const uint popID) { 
 
    // Allocate data pointer for all blocks in pencil. Pad on both ends by VLASOV_STENCIL_WIDTH
