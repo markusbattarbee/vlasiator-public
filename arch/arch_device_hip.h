@@ -61,6 +61,12 @@
 #define gpuEventQuery                    hipEventQuery
 #define gpuEventRecord                   hipEventRecord
 #define gpuEventSynchronize              hipEventSynchronize
+
+#define gpuMemPool_t                     hipMemPool_t
+#define gpuDeviceGetDefaultMemPool       hipDeviceGetDefaultMemPool
+#define gpuMemPoolSetAttribute           hipMemPoolSetAttribute
+#define gpuMemPoolAttrReleaseThreshold   hipMemPoolAttrReleaseThreshold
+
 #define gpuEventElapsedTime              hipEventElapsedTime
 
 /* driver_types */

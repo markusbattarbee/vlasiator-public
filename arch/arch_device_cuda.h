@@ -66,6 +66,11 @@
 #define gpuEventSynchronize              cudaEventSynchronize
 #define gpuEventElapsedTime              cudaEventElapsedTime
 
+#define gpuMemPool_t                     cudaMemPool_t
+#define gpuDeviceGetDefaultMemPool       cudaDeviceGetDefaultMemPool
+#define gpuMemPoolSetAttribute           cudaMemPoolSetAttribute
+#define gpuMemPoolAttrReleaseThreshold   cudaMemPoolAttrReleaseThreshold
+
 /* driver_types */
 #define gpuError_t                       cudaError_t
 #define gpuSuccess                       cudaSuccess

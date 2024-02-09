@@ -168,6 +168,12 @@ __host__ void gpu_init_device() {
    }
    #endif
 
+   // Set default mempool release attribute
+   gpuMemPool_t mempool;
+   gpuDeviceGetDefaultMemPool(&mempool, myDevice);
+   uint64_t threshold = UINT64_MAX;
+   gpuMemPoolSetAttribute(mempool, gpuMemPoolAttrReleaseThreshold, &threshold);
+
    // Pre-generate streams, allocate return pointers
    int *leastPriority = new int; // likely 0
    int *greatestPriority = new int; // likely -1
