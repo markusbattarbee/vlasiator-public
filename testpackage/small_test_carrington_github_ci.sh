@@ -80,6 +80,7 @@ fi
 
 # Get absolute paths
 reference_dir=$( readlink -f $reference_dir )
+reference_revision_full=$( readlink $reference_dir/$reference_revision )
 run_dir=$( readlink -f $run_dir )_$( date +%Y.%m.%d_%H.%M.%S )
 bin=$( readlink -f $bin )
 diffbin=$( readlink -f $diffbin )
@@ -92,6 +93,7 @@ revision=$( $run_command $bin --version |gawk '{if(flag==1) {print $1;flag=0}if 
 #$small_run_command $bin --version > VERSION.txt 2> $GITHUB_WORKSPACE/stderr.txt
 
 echo -e "### Testpackage output:\n" >> $GITHUB_STEP_SUMMARY
+echo "CI_reference pointed to $reference_revision_full" >> $GITHUB_STEP_SUMMARY
 
 NONZEROTESTS=0
 ZEROTESTS=0
@@ -128,6 +130,10 @@ for run in ${run_tests[*]}; do
 
    # Store error return value
    RUN_ERROR=${PIPESTATUS[0]}
+   # Fore set to error if output file does not exist
+   if [ ! -f ${vlsv_dir}/${comparison_vlsv[$run]} ]; then
+       RUN_ERROR=1
+   fi
 
    if [[ $RUN_ERROR != 0 ]]; then
       echo -e "<details><summary>:red_circle: ${test_name[$run]}: Failed to run or died with an error.</summary>\n"  >> $GITHUB_STEP_SUMMARY
