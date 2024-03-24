@@ -984,6 +984,7 @@ namespace spatial_cell {
       if (localContentBlocks+localNoContentBlocks > 0) {
          HashmapReqSize += ceil(log2(localContentBlocks+localNoContentBlocks));
       }
+      vmesh::LocalID HashmapBuckets = pow(2,HashmapReqSize);
       if (BlocksRequiredMapSizePower >= HashmapReqSize) {
          // Map is already large enough
          BlocksRequiredMap->clear(Hashinator::targets::device,stream,false);
@@ -1102,30 +1103,10 @@ namespace spatial_cell {
 
       // Extract list and count of all required blocks (content or with neighbors in spatial or velocity space)
       phiprof::Timer gatherTimer {"Gather blocks required"};
-      const vmesh::LocalID nBlocksRequired = BlocksRequiredMap->extractAllKeys(*BlocksRequired,stream,false);
-      split::SplitVector<vmesh::GlobalID> BlocksRequired2;
-      BlocksRequired2.reserve(BlocksRequiredMap->size());
-      BlocksRequired2.optimizeGPU(stream);
-      BlocksRequiredMap->extractAllKeysLoop(*BlocksRequired,stream);
-      BlocksRequired2.optimizeCPU(stream);
-      BlocksRequired->optimizeCPU(stream);
-      if (BlocksRequired2.size() != BlocksRequired->size()) {
-         stringstream ss;
-         ss<<" Error!BlocksRequired2 size is "<<BlocksRequired2.size()<<" instead of "<<BlocksRequired->size()<<"!"<<std::endl;
-         std::cerr<<ss.str();
-      } else {
-         stringstream ss;
-         ss<<"-----------------------------------------"<<std::endl;
-         for (uint i=0; i<BlocksRequired2.size(); ++i) {
-            if (BlocksRequired2.at(i) != BlocksRequired->at(i)) {
-               ss<<" i:"<<i<<"   "<<BlocksRequired2.at(i)<<" != "<<BlocksRequired->at(i)<<std::endl;
-            }
-         }
-         ss<<"-----------------------------------------"<<std::endl;
-         std::cerr<<ss.str();
-      }
-      BlocksRequired2.optimizeGPU(stream);
+      // const vmesh::LocalID nBlocksRequired = BlocksRequiredMap->extractAllKeys(*BlocksRequired,stream,false);
+      BlocksRequired->reserve(BlocksRequiredMap->bucket_count());
       BlocksRequired->optimizeGPU(stream);
+      BlocksRequiredMap->extractAllKeysLoop(*BlocksRequired,stream);
       gatherTimer.stop();
 
       // Flag all blocks in this cell without content + without neighbors with content to be removed
