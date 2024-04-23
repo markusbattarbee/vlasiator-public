@@ -499,7 +499,9 @@ void balanceLoad(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid, S
    const vector<CellID>& cells = getLocalCells();
    for (size_t i=0; i<cells.size(); ++i){
       // Set cell weight. We could use different counters or number of blocks if different solvers are active.     
-      // if (P::propagateVlasovAcceleration) 
+      // if (P::propagateVlasovAcceleration)
+      // When using the FS-SPLIT functionality, Jaro Hokkanen reported issues with using the regular
+      // CellParams::LBWEIGHTCOUNTER, so use of blockscounts + 1 might be required.
       mpiGrid.set_cell_weight(cells[i], (Real)1 + mpiGrid[cells[i]]->parameters[CellParams::LBWEIGHTCOUNTER]);
    }
 
