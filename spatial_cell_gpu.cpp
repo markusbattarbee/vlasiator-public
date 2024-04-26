@@ -39,27 +39,29 @@ __global__ void __launch_bounds__(WID3,4) update_velocity_block_content_lists_ke
    vmesh::VelocityBlockContainer *blockContainer,
    //vmesh::GlobalID* vbwcl_gather,
    //vmesh::GlobalID* vbwncl_gather,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* vbwcl_map,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* vbwncl_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* vbwcl_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* vbwncl_map,
+   split::SplitVector<vmesh::GlobalID> *velocity_block_with_content_list,  /**< List of existing cells with content, only up-to-date after call to update_has_content().*/
+   split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list,  /**< List of existing cells with content, only up-to-date after call to update_has_content().*/
    Real velocity_block_min_value
    ) {
    // const int gpuBlocks = gridDim.x;
-   const int blocki = blockIdx.x;
-   const uint ti = threadIdx.x;
+   // const int blocki = blockIdx.x;
+   // const uint ti = threadIdx.x;
 
-   // Each GPU block / workunit can manage several Vlasiator velocity blocks at once.
-   const uint vlasiBlocksPerWorkUnit = 1;
-   const uint workUnitIndex = 0; // [0,vlasiBlocksPerWorkUnit)
-   // const uint vlasiBlocksPerWorkUnit = WARPSPERBLOCK * GPUTHREADS / WID3;
-   // const uint workUnitIndex = ti / WID3; // [0,vlasiBlocksPerWorkUnit)
-   const uint b_tid = ti % WID3; // [0,WID3)
-   const uint blockLID = blocki * vlasiBlocksPerWorkUnit + workUnitIndex; // [0,nBlocksToChange)
+   // // Each GPU block / workunit can manage several Vlasiator velocity blocks at once.
+   // const uint vlasiBlocksPerWorkUnit = 1;
+   // const uint workUnitIndex = 0; // [0,vlasiBlocksPerWorkUnit)
+   // // const uint vlasiBlocksPerWorkUnit = WARPSPERBLOCK * GPUTHREADS / WID3;
+   // // const uint workUnitIndex = ti / WID3; // [0,vlasiBlocksPerWorkUnit)
+   // const uint b_tid = ti % WID3; // [0,WID3)
+   // const uint blockLID = blocki * vlasiBlocksPerWorkUnit + workUnitIndex; // [0,nBlocksToChange)
 
-   __shared__ int has_content[WARPSPERBLOCK * GPUTHREADS];
+   //__shared__ int has_content[WARPSPERBLOCK * GPUTHREADS];
    // maps can only be cleared from host
    const uint nBlocks = vmesh->size();
-   //for (uint blockLID=blocki; blockLID<nBlocks; blockLID += gpuBlocks) {
-   if (blockLID < nBlocks) {
+   for (uint blockLID=0; blockLID<nBlocks; blockLID++) {
+   // if (blockLID < nBlocks) {
       const vmesh::GlobalID blockGID = vmesh->getGlobalID(blockLID);
       #ifdef DEBUG_SPATIAL_CELL
       if (blockGID == vmesh->invalidGlobalID()) {
@@ -73,25 +75,20 @@ __global__ void __launch_bounds__(WID3,4) update_velocity_block_content_lists_ke
       #endif
       // Check each velocity cell if it is above the threshold
       const Realf* avgs = blockContainer->getData(blockLID);
-      has_content[ti] = avgs[b_tid] >= velocity_block_min_value ? 1 : 0;
-      __syncthreads(); // THIS SYNC IS CRUCIAL!
-      // Implemented just a simple non-optimized thread OR
-      // GPUTODO reductions via warp voting
-      for (unsigned int s=WID3/2; s>0; s>>=1) {
-         if (b_tid < s) {
-            has_content[ti] = has_content[ti] || has_content[ti + s];
-         }
-         __syncthreads();
-      }
-      // Increment vector only from threads 0...WARPSIZE
-      if (b_tid < GPUTHREADS) {
-         if (has_content[ti]) {
-            vbwcl_map->warpInsert(blockGID,blockLID,b_tid);
-         } else {
-            vbwncl_map->warpInsert(blockGID,blockLID,b_tid);
+      bool content=false;
+      for (uint i=0; i<WID3; ++i) {
+         if (avgs[i] >= velocity_block_min_value) {
+            content=true;
+            break;
          }
       }
-      __syncthreads();
+      if (content) {
+         velocity_block_with_content_list->device_push_back(blockGID);
+         //vbwcl_map->warpInsert(blockGID,blockLID,b_tid);
+      } else {
+         velocity_block_with_no_content_list->device_push_back(blockGID);
+         // vbwncl_map->warpInsert(blockGID,blockLID,b_tid);
+      }
    }
 }
 
@@ -106,57 +103,78 @@ __global__ void update_velocity_halo_kernel (
    vmesh::VelocityMesh *vmesh,
    vmesh::LocalID velocity_block_with_content_list_size, // actually not used
    vmesh::GlobalID* velocity_block_with_content_list_data,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_content_map,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_no_content_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_content_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_no_content_map,
    Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_map_add
    ) {
-   //const int gpuBlocks = gridDim.x; // Equal to VB with content list size (or at least 1)
-   const int blocki = blockIdx.x;
-   const int ti = threadIdx.x;
-   //const int blockSize = blockDim.x; // should be 26*32 or 13*64
-   const int offsetIndex1 = ti / GPUTHREADS; // [0,26) (NVIDIA) or [0,13) (AMD)
-   const int w_tid = ti % GPUTHREADS; // [0,WARPSIZE)
-   // Assumes addWidthV = 1
-   #ifdef __CUDACC__
-   const int max_i=1;
-   #endif
-   #ifdef __HIP_PLATFORM_HCC___
-   const int max_i=2;
-   #endif
-   for (int i=0; i<max_i; i++) {
-      int offsetIndex = offsetIndex1 + 13*i;
-      // nudge latter half in order to exclude self
-      if (offsetIndex > 12) {
-         offsetIndex++;
-      }
-      const int offset_vx = (offsetIndex % 3) - 1;
-      const int offset_vy = ((offsetIndex / 3) % 3) - 1;
-      const int offset_vz = (offsetIndex / 9) - 1;
-      // Offsets verified in python
-      const vmesh::GlobalID GID = velocity_block_with_content_list_data[blocki];
+
+   int addWidthV = 1;
+   const uint nBlocks = velocity_block_with_content_list_size;
+   for (uint blockLID=0; blockLID<nBlocks; blockLID++) {
+      const vmesh::GlobalID GID = velocity_block_with_content_list_data[blockLID];
       vmesh::LocalID ind0,ind1,ind2;
       vmesh->getIndices(GID,ind0,ind1,ind2);
-      const int nind0 = ind0 + offset_vx;
-      const int nind1 = ind1 + offset_vy;
-      const int nind2 = ind2 + offset_vz;
-      const vmesh::GlobalID nGID
-         = vmesh->getGlobalID(nind0,nind1,nind2);
-      // Does block already exist in mesh?
-      const vmesh::LocalID LID = vmesh->warpGetLocalID(nGID, w_tid);
-      // Try adding this nGID to velocity_block_with_content_map
-      const bool newlyadded = dev_velocity_block_with_content_map->warpInsert_V(nGID,LID, w_tid);
-      if (newlyadded) {
-         // Block did not previously exist in velocity_block_with_content_map
-         if (LID==vmesh->invalidLocalID()) {
-            // Block does not yet exist in mesh at all. Needs adding!
-            dev_map_add->warpInsert(nGID,vmesh->invalidLocalID(),w_tid);
-         } else {
-            // Block exists in mesh, ensure it won't get deleted:
-            // try deleting from no_content map
-            dev_velocity_block_with_no_content_map->warpErase(nGID, w_tid);
+      for (int offset_vx=-addWidthV;offset_vx<=addWidthV;offset_vx++) {
+         for (int offset_vy=-addWidthV;offset_vy<=addWidthV;offset_vy++) {
+            for (int offset_vz=-addWidthV;offset_vz<=addWidthV;offset_vz++) {
+               const int nind0 = ind0 + offset_vx;
+               const int nind1 = ind1 + offset_vy;
+               const int nind2 = ind2 + offset_vz;
+               const vmesh::GlobalID nGID
+                  = vmesh->getGlobalID(nind0,nind1,nind2);
+               dev_map_add->set_element(nGID,blockLID);
+               // neighbors_have_content.insert(neighbor_block); //add all potential ngbrs of this block with content
+            }
          }
       }
    }
+   // //const int gpuBlocks = gridDim.x; // Equal to VB with content list size (or at least 1)
+   // const int blocki = blockIdx.x;
+   // const int ti = threadIdx.x;
+   // //const int blockSize = blockDim.x; // should be 26*32 or 13*64
+   // const int offsetIndex1 = ti / GPUTHREADS; // [0,26) (NVIDIA) or [0,13) (AMD)
+   // const int w_tid = ti % GPUTHREADS; // [0,WARPSIZE)
+   // // Assumes addWidthV = 1
+   // #ifdef __CUDACC__
+   // const int max_i=1;
+   // #endif
+   // #ifdef __HIP_PLATFORM_HCC___
+   // const int max_i=2;
+   // #endif
+   // for (int i=0; i<max_i; i++) {
+   //    int offsetIndex = offsetIndex1 + 13*i;
+   //    // nudge latter half in order to exclude self
+   //    if (offsetIndex > 12) {
+   //       offsetIndex++;
+   //    }
+   //    const int offset_vx = (offsetIndex % 3) - 1;
+   //    const int offset_vy = ((offsetIndex / 3) % 3) - 1;
+   //    const int offset_vz = (offsetIndex / 9) - 1;
+   //    // Offsets verified in python
+   //    const vmesh::GlobalID GID = velocity_block_with_content_list_data[blocki];
+   //    vmesh::LocalID ind0,ind1,ind2;
+   //    vmesh->getIndices(GID,ind0,ind1,ind2);
+   //    const int nind0 = ind0 + offset_vx;
+   //    const int nind1 = ind1 + offset_vy;
+   //    const int nind2 = ind2 + offset_vz;
+   //    const vmesh::GlobalID nGID
+   //       = vmesh->getGlobalID(nind0,nind1,nind2);
+   //    // Does block already exist in mesh?
+   //    const vmesh::LocalID LID = vmesh->warpGetLocalID(nGID, w_tid);
+   //    // Try adding this nGID to velocity_block_with_content_map
+   //    const bool newlyadded = dev_velocity_block_with_content_map->warpInsert_V(nGID,LID, w_tid);
+   //    if (newlyadded) {
+   //       // Block did not previously exist in velocity_block_with_content_map
+   //       if (LID==vmesh->invalidLocalID()) {
+   //          // Block does not yet exist in mesh at all. Needs adding!
+   //          dev_map_add->warpInsert(nGID,vmesh->invalidLocalID(),w_tid);
+   //       } else {
+   //          // Block exists in mesh, ensure it won't get deleted:
+   //          // try deleting from no_content map
+   //          dev_velocity_block_with_no_content_map->warpErase(nGID, w_tid);
+   //       }
+   //    }
+   // }
 }
 
 /** Gpu Kernel to quickly gather the spatial halo of neighbour content blocks
@@ -167,45 +185,125 @@ __global__ void update_neighbour_halo_kernel (
    uint neighbour_count,
    vmesh::GlobalID **dev_neigh_vbwcls,
    vmesh::LocalID *dev_neigh_Nvbwcls,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_content_map,
-   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_no_content_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_content_map,
+   // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_velocity_block_with_no_content_map,
    Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_map_add
    ) {
    //const int blockSize = blockDim.x; // should be 32*32 or 16*64
    //const int gpuBlocks = gridDim.x; // Equal to count of neighbour content blocks divided by (warps/block)
-   const int ti = threadIdx.x; // [0,blockSize)
-   const int w_tid = ti % GPUTHREADS; // [0,WARPSIZE)
-   int myindex = blockIdx.x * WARPSPERBLOCK + ti / GPUTHREADS; // Starts off as total index
+   // const int ti = threadIdx.x; // [0,blockSize)
+   // const int w_tid = ti % GPUTHREADS; // [0,WARPSIZE)
+   // int myindex = blockIdx.x * WARPSPERBLOCK + ti / GPUTHREADS; // Starts off as total index
    // Find which neighbour we should access
    uint neigh_i = 0;
-   for (uint i=0; i<neighbour_count; i++) {
-      if (myindex < (int)dev_neigh_Nvbwcls[neigh_i]) {
-         break;
-      }
-      myindex -= dev_neigh_Nvbwcls[neigh_i];
-      neigh_i++;
-   } // Now we know which neighbour buffer to access
+   // for (uint i=0; i<neighbour_count; i++) {
+   //    if (myindex < (int)dev_neigh_Nvbwcls[neigh_i]) {
+   //       break;
+   //    }
+   //    myindex -= dev_neigh_Nvbwcls[neigh_i];
+   //    neigh_i++;
+   // } // Now we know which neighbour buffer to access
    // Access neighbour GID from buffer and act on it
-   if (neigh_i < neighbour_count) {
-      const vmesh::GlobalID nGID = (dev_neigh_vbwcls[neigh_i])[myindex];
-      // Does block already exist in mesh?
-      const vmesh::LocalID LID = vmesh->warpGetLocalID(nGID, w_tid);
-      // Try adding this nGID to velocity_block_with_content_map
-      const bool newlyadded = dev_velocity_block_with_content_map->warpInsert_V(nGID,LID, w_tid);
-      if (newlyadded) {
-         // Block did not previously exist in velocity_block_with_content_map
-         if (LID==vmesh->invalidLocalID()) {
-            // Block does not yet exist in mesh at all. Needs adding!
-            dev_map_add->warpInsert(nGID,vmesh->invalidLocalID(),w_tid);
+   // if (neigh_i < neighbour_count) {
+   const uint nBlocks = dev_neigh_Nvbwcls[neigh_i];
+   for (uint blockLID=0; blockLID<nBlocks; blockLID++) {
+      const vmesh::GlobalID nGID = (dev_neigh_vbwcls[neigh_i])[blockLID];
+      dev_map_add->set_element(nGID,blockLID);
+   }
+
+   
+   //    const vmesh::GlobalID nGID = (dev_neigh_vbwcls[neigh_i])[myindex];
+   //    // Does block already exist in mesh?
+   //    const vmesh::LocalID LID = vmesh->warpGetLocalID(nGID, w_tid);
+   //    // Try adding this nGID to velocity_block_with_content_map
+   //    const bool newlyadded = dev_velocity_block_with_content_map->warpInsert_V(nGID,LID, w_tid);
+   //    if (newlyadded) {
+   //       // Block did not previously exist in velocity_block_with_content_map
+   //       if (LID==vmesh->invalidLocalID()) {
+   //          // Block does not yet exist in mesh at all. Needs adding!
+   //          dev_map_add->warpInsert(nGID,vmesh->invalidLocalID(),w_tid);
+   //       } else {
+   //          // Block exists in mesh, ensure it won't get deleted:
+   //          // try deleting from no_content map
+   //          dev_velocity_block_with_no_content_map->warpErase(nGID, w_tid);
+   //       }
+   //    }
+   // }
+}
+
+/** Silly serial Gpu Kernel to delete blocks
+*/
+//__launch_bounds__(GPUTHREADS,4)
+__global__ void delete_blocks_kernel (
+   vmesh::VelocityMesh *vmesh,
+   vmesh::VelocityBlockContainer *blockContainer,
+   split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list,
+   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_map_add
+   ) {
+
+   for (int block_index = velocity_block_with_no_content_list->size()-1; block_index>=0; --block_index) {
+      const vmesh::GlobalID blockGID = velocity_block_with_no_content_list->at(block_index);
+      bool removeBlock = false;
+      if (dev_map_add->count(blockGID) == 0) {
+         removeBlock = true;
+      }
+      if (removeBlock == true) {
+         //No content, and also no neighbor have content -> remove
+         //and increment rho loss counters
+         const vmesh::LocalID removedLID = vmesh->getLocalID(blockGID);
+         const Real* block_parameters = blockContainer->getParameters(removedLID);
+         Realf* rm_avgs = blockContainer->getData(removedLID);
+         const Real DV3 = block_parameters[BlockParams::DVX]
+            * block_parameters[BlockParams::DVY]
+            * block_parameters[BlockParams::DVZ];
+         Real sum=0;
+         for (unsigned int i=0; i<WID3; ++i) sum += rm_avgs[i];
+         //this->populations[popID].RHOLOSSADJUST += DV3*sum; // don't actually bother gathering for this trial
+
+         // and finally remove block
+         // Get local ID of the last block:
+         const vmesh::LocalID lastLID = vmesh->size()-1;
+
+         if (lastLID == removedLID) {
+            // Just remove the block
+            vmesh->pop();
+            blockContainer->pop();
          } else {
-            // Block exists in mesh, ensure it won't get deleted:
-            // try deleting from no_content map
-            dev_velocity_block_with_no_content_map->warpErase(nGID, w_tid);
+            // Move the last block to the removed position
+            vmesh->move(lastLID,removedLID);
+            blockContainer->move(lastLID,removedLID);
          }
       }
    }
 }
 
+/** Silly serial Gpu Kernel to add blocks
+*/
+//__launch_bounds__(GPUTHREADS,4)
+__global__ void add_blocks_kernel (
+   vmesh::VelocityMesh *vmesh,
+   vmesh::VelocityBlockContainer *blockContainer,
+   Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_map_add
+   ) {
+   // ADD all blocks with neighbors in spatial or velocity space (if it exists then the block is unchanged)
+   for (auto it=dev_map_add->device_begin(); it != dev_map_add->device_end(); ++it) {
+      vmesh::GlobalID block = (*it).first;
+
+      // Block insert will fail, if the block already exists, or if
+      // there are too many blocks in the spatial cell
+      bool success = true;
+      if (vmesh->push_back(block) == false) {
+         continue;
+      }
+
+      const vmesh::LocalID VBC_LID = blockContainer->push_back_and_zero();
+
+      // Set block parameters:
+      //      Real* parameters = get_block_parameters(populations[popID].vmesh.getLocalID(block));
+      Real* parameters = blockContainer->getParameters(VBC_LID);
+      vmesh->getBlockInfo(block, parameters + VBC_LID * BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VXCRD);
+   }
+}
 /** GPU kernel for quickly filling block parameters.
  */
 __global__ void __launch_bounds__(GPUTHREADS,4) update_blockparameters_kernel (
@@ -650,6 +748,14 @@ namespace spatial_cell {
       velocity_block_with_content_list_size=0;
       velocity_block_with_content_list_capacity=1;
 
+      void *buf3 = malloc(sizeof(split::SplitVector<vmesh::GlobalID>));
+      velocity_block_with_no_content_list = ::new (buf3) split::SplitVector<vmesh::GlobalID>(1);
+      //velocity_block_with_content_list = new split::SplitVector<vmesh::GlobalID>(1);
+      dev_velocity_block_with_no_content_list = velocity_block_with_no_content_list->upload();
+      velocity_block_with_no_content_list->clear();
+      velocity_block_with_no_content_list_size=0;
+      velocity_block_with_no_content_list_capacity=1;
+      
       // create in host instead of unified memory, upload device copy
       void *buf1 = malloc(sizeof(Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>));
       void *buf2 = malloc(sizeof(Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>));
@@ -676,6 +782,10 @@ namespace spatial_cell {
          ::delete velocity_block_with_content_list;
          velocity_block_with_content_list = 0;
       }
+      if (velocity_block_with_no_content_list) {
+         ::delete velocity_block_with_no_content_list;
+         velocity_block_with_no_content_list = 0;
+      }
       if (velocity_block_with_content_map) {
          ::delete velocity_block_with_content_map;
          velocity_block_with_content_map = 0;
@@ -686,6 +796,8 @@ namespace spatial_cell {
       }
       velocity_block_with_content_list_size=0;
       velocity_block_with_content_list_capacity=0;
+      velocity_block_with_no_content_list_size=0;
+      velocity_block_with_no_content_list_capacity=0;
       vbwcl_sizePower = 0;
       vbwncl_sizePower = 0;
    }
@@ -701,6 +813,14 @@ namespace spatial_cell {
       velocity_block_with_content_list->clear();
       velocity_block_with_content_list_size = 0;
       velocity_block_with_content_list_capacity = reserveSize;
+      
+      void *buf3 = malloc(sizeof(split::SplitVector<vmesh::GlobalID>));
+      velocity_block_with_no_content_list = ::new (buf3) split::SplitVector<vmesh::GlobalID>(reserveSize);
+      //velocity_block_with_content_list = new split::SplitVector<vmesh::GlobalID>(reserveSize);
+      dev_velocity_block_with_no_content_list = velocity_block_with_no_content_list->upload();
+      velocity_block_with_no_content_list->clear();
+      velocity_block_with_no_content_list_size = 0;
+      velocity_block_with_no_content_list_capacity = reserveSize;
 
       // create in host instead of unified memory, upload device copy
       void *buf1 = malloc(sizeof(Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>));
@@ -753,6 +873,12 @@ namespace spatial_cell {
       velocity_block_with_content_list_capacity=reserveSize;
       dev_velocity_block_with_content_list = velocity_block_with_content_list->upload();
 
+      velocity_block_with_no_content_list->reserve(reserveSize);
+      velocity_block_with_no_content_list->clear();
+      velocity_block_with_no_content_list_size = 0;
+      velocity_block_with_no_content_list_capacity=reserveSize;
+      dev_velocity_block_with_no_content_list = velocity_block_with_no_content_list->upload();
+      
       velocity_block_with_content_map->resize(other.vbwcl_sizePower);
       velocity_block_with_no_content_map->resize(other.vbwncl_sizePower);
       dev_velocity_block_with_content_map = velocity_block_with_content_map->upload();
@@ -819,6 +945,14 @@ namespace spatial_cell {
          velocity_block_with_content_list_capacity = newReserve;
          dev_velocity_block_with_content_list = velocity_block_with_content_list->upload(stream);
          velocity_block_with_content_list->optimizeGPU(stream);
+         //vectorTimer.stop();
+      }
+      if (velocity_block_with_no_content_list_capacity < newReserve) {
+         //phiprof::Timer vectorTimer {"with_vector"};
+         velocity_block_with_no_content_list->reserve(newReserve,true);
+         velocity_block_with_no_content_list_capacity = newReserve;
+         dev_velocity_block_with_no_content_list = velocity_block_with_no_content_list->upload(stream);
+         velocity_block_with_no_content_list->optimizeGPU(stream);
          //vectorTimer.stop();
       }
       if (vbwcl_sizePower < HashmapReqSize) {
@@ -923,12 +1057,13 @@ namespace spatial_cell {
          // For NVIDIA/CUDA, we dan do 26 neighbours and 32 threads per warp in a single block.
          // For AMD/HIP, we dan do 13 neighbours and 64 threads per warp in a single block, meaning two loops per cell.
          // In either case, we launch blocks equal to velocity_block_with_content_list_size
-         update_velocity_halo_kernel<<<velocity_block_with_content_list_size, 26*32, 0, stream>>> (
+         //update_velocity_halo_kernel<<<velocity_block_with_content_list_size, 26*32, 0, stream>>> (
+         update_velocity_halo_kernel<<<1, 1, 0, stream>>> (
             dev_vmesh,
             velocity_block_with_content_list_size,
             _withContentData,
-            dev_velocity_block_with_content_map,
-            dev_velocity_block_with_no_content_map,
+            // dev_velocity_block_with_content_map,
+            // dev_velocity_block_with_no_content_map,
             dev_map_add
             );
          CHK_ERR( gpuPeekAtLastError() );
@@ -970,79 +1105,102 @@ namespace spatial_cell {
          // In either case, we launch blocks equal to velocity_block_with_content_list_size
          // We always launch at least one block in order to clear splitvectors.
          // ceil int division
-         uint launchBlocks = 1 + ((neighbours_blocks_count - 1) / WARPSPERBLOCK);
-         if (launchBlocks < std::pow(2,31)) {
-            update_neighbour_halo_kernel<<<launchBlocks, WARPSPERBLOCK*GPUTHREADS, 0, stream>>> (
-               dev_vmesh,
-               neighbours_count,
-               dev_neigh_vbwcls,
-               dev_neigh_Nvbwcls,
-               dev_velocity_block_with_content_map,
-               dev_velocity_block_with_no_content_map,
-               dev_map_add
-               );
-            CHK_ERR( gpuPeekAtLastError() );
-         } else {
+         // uint launchBlocks = 1 + ((neighbours_blocks_count - 1) / WARPSPERBLOCK);
+         // if (launchBlocks < std::pow(2,31)) {
+         //    update_neighbour_halo_kernel<<<launchBlocks, WARPSPERBLOCK*GPUTHREADS, 0, stream>>> (
+         //       dev_vmesh,
+         //       neighbours_count,
+         //       dev_neigh_vbwcls,
+         //       dev_neigh_Nvbwcls,
+         //       dev_velocity_block_with_content_map,
+         //       dev_velocity_block_with_no_content_map,
+         //       dev_map_add
+         //       );
+         //    CHK_ERR( gpuPeekAtLastError() );
+         // } else {
             // Too many launch blocks, call one by one (unlikely)
             for (uint neigh_i = 0; neigh_i < neighbours_count; neigh_i++) {
-               uint launchBlocks = 1 + ((neigh_Nvbwcls[neigh_i] - 1) / WARPSPERBLOCK);
-               update_neighbour_halo_kernel<<<launchBlocks, WARPSPERBLOCK*GPUTHREADS, 0, stream>>> (
+               // uint launchBlocks = 1 + ((neigh_Nvbwcls[neigh_i] - 1) / WARPSPERBLOCK);
+               // update_neighbour_halo_kernel<<<launchBlocks, WARPSPERBLOCK*GPUTHREADS, 0, stream>>> (
+               update_neighbour_halo_kernel<<<1, 1, 0, stream>>> (
                   dev_vmesh,
                   1,
                   dev_neigh_vbwcls+neigh_i,
                   dev_neigh_Nvbwcls+neigh_i,
-                  dev_velocity_block_with_content_map,
-                  dev_velocity_block_with_no_content_map,
+                  // dev_velocity_block_with_content_map,
+                  // dev_velocity_block_with_no_content_map,
                   dev_map_add
                   );
                CHK_ERR( gpuPeekAtLastError() );
             }
-         }
+         // }
          //CHK_ERR( gpuStreamSynchronize(stream) );
          //neighHaloTimer.stop();
       }
+
+      // now map_add is same as neighbors_have_content in CPU
 
       // Now extract vectors to be used in actual block adjustment
       // Previous kernels may have added dummy (to be added) entries to
       // velocity_block_with_content_map with LID=vmesh->invalidLocalID()
       // Or non-content blocks which should be retained (with correct LIDs).
 
-      /** Rules used in extracting keys or elements from hashmaps
-          Now these include passing pointers to GPU memory in order to evaluate
-          nBlocksAfterAdjust without going via host. Pointers are copied by value.
-       */
-      vmesh::GlobalID EMPTYBUCKET = std::numeric_limits<vmesh::GlobalID>::max();
-      vmesh::GlobalID TOMBSTONE = EMPTYBUCKET - 1;
-      Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *vbwncm = dev_velocity_block_with_no_content_map;
-      Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *d_addmap = dev_map_add;
+      if (doDeleteEmptyBlocks) {
+         delete_blocks_kernel<<<1, 1, 0, stream>>> (
+            populations[popID].dev_vmesh,
+            populations[popID].dev_blockContainer,
+            dev_velocity_block_with_no_content_list,
+            dev_map_add
+            );
+      }
 
-      auto rule_delete_move = [EMPTYBUCKET, TOMBSTONE, vbwncm, d_addmap, dev_vmesh]
-         __host__ __device__(const Hashinator::hash_pair<vmesh::GlobalID, vmesh::LocalID>& kval) -> bool {
-                                 const vmesh::LocalID nBlocksAfterAdjust1 = dev_vmesh->size()
-                                    + d_addmap->size() - vbwncm->size();
-                                 return kval.first != EMPTYBUCKET &&
-                                    kval.first != TOMBSTONE &&
-                                    kval.first != dev_vmesh->invalidGlobalID() &&
-                                    kval.second >= nBlocksAfterAdjust1 &&
-                                    kval.second != dev_vmesh->invalidLocalID(); };
-      auto rule_to_replace = [EMPTYBUCKET, TOMBSTONE, vbwncm, d_addmap, dev_vmesh]
-         __host__ __device__(const Hashinator::hash_pair<vmesh::GlobalID, vmesh::LocalID>& kval) -> bool {
-                                 const vmesh::LocalID nBlocksAfterAdjust2 = dev_vmesh->size()
-                                    + d_addmap->size() - vbwncm->size();
-                                 return kval.first != EMPTYBUCKET &&
-                                    kval.first != TOMBSTONE &&
-                                    kval.first != dev_vmesh->invalidGlobalID() &&
-                                    kval.second < nBlocksAfterAdjust2 &&
-                                    kval.second != dev_vmesh->invalidLocalID(); };
+      add_blocks_kernel<<<1, 1, 0, stream>>> (
+         populations[popID].dev_vmesh,
+         populations[popID].dev_blockContainer,
+         dev_map_add
+         );
+      CHK_ERR( gpuStreamSynchronize(stream) );
+      
+      // /** Rules used in extracting keys or elements from hashmaps
+      //     Now these include passing pointers to GPU memory in order to evaluate
+      //     nBlocksAfterAdjust without going via host. Pointers are copied by value.
+      //  */
+      // vmesh::GlobalID EMPTYBUCKET = std::numeric_limits<vmesh::GlobalID>::max();
+      // vmesh::GlobalID TOMBSTONE = EMPTYBUCKET - 1;
+      // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *vbwncm = dev_velocity_block_with_no_content_map;
+      // Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *d_addmap = dev_map_add;
 
-      velocity_block_with_content_map->extractPatternLoop(*list_with_replace_old, rule_delete_move, stream);
-      velocity_block_with_no_content_map->extractPatternLoop(*list_delete, rule_delete_move, stream);
-      velocity_block_with_no_content_map->extractPatternLoop(*list_to_replace, rule_to_replace, stream);
-      map_add->extractAllKeysLoop(*list_with_replace_new,stream);
-      // Note:list_with_replace_new contains both new GIDs to use for replacements and new GIDs to place at end of vmesh
+      // auto rule_delete_move = [EMPTYBUCKET, TOMBSTONE, vbwncm, d_addmap, dev_vmesh]
+      //    __host__ __device__(const Hashinator::hash_pair<vmesh::GlobalID, vmesh::LocalID>& kval) -> bool {
+      //                            const vmesh::LocalID nBlocksAfterAdjust1 = dev_vmesh->size()
+      //                               + d_addmap->size() - vbwncm->size();
+      //                            return kval.first != EMPTYBUCKET &&
+      //                               kval.first != TOMBSTONE &&
+      //                               kval.first != dev_vmesh->invalidGlobalID() &&
+      //                               kval.second >= nBlocksAfterAdjust1 &&
+      //                               kval.second != dev_vmesh->invalidLocalID(); };
+      // auto rule_to_replace = [EMPTYBUCKET, TOMBSTONE, vbwncm, d_addmap, dev_vmesh]
+      //    __host__ __device__(const Hashinator::hash_pair<vmesh::GlobalID, vmesh::LocalID>& kval) -> bool {
+      //                            const vmesh::LocalID nBlocksAfterAdjust2 = dev_vmesh->size()
+      //                               + d_addmap->size() - vbwncm->size();
+      //                            return kval.first != EMPTYBUCKET &&
+      //                               kval.first != TOMBSTONE &&
+      //                               kval.first != dev_vmesh->invalidGlobalID() &&
+      //                               kval.second < nBlocksAfterAdjust2 &&
+      //                               kval.second != dev_vmesh->invalidLocalID(); };
 
-      // Actual adjustment calling happens in separate function as it is also called from within acceleration
-      vmesh::LocalID nBlocksAfterAdjust = adjust_velocity_blocks_caller(popID);
+      // velocity_block_with_content_map->extractPatternLoop(*list_with_replace_old, rule_delete_move, stream);
+      // if (doDeleteEmptyBlocks) {
+      //    velocity_block_with_no_content_map->extractPatternLoop(*list_delete, rule_delete_move, stream);
+      //    velocity_block_with_no_content_map->extractPatternLoop(*list_to_replace, rule_to_replace, stream);
+      // } else {
+      //    velocity_block_with_no_content_map->extractPatternLoop(*list_delete, rule_delete_move, stream);         
+      // }
+      // map_add->extractAllKeysLoop(*list_with_replace_new,stream);
+      // // Note:list_with_replace_new contains both new GIDs to use for replacements and new GIDs to place at end of vmesh
+
+      // // Actual adjustment calling happens in separate function as it is also called from within acceleration
+      // vmesh::LocalID nBlocksAfterAdjust = adjust_velocity_blocks_caller(popID);
 
       // Perform hashmap cleanup here (instead of at acceleration mid-steps)
       phiprof::Timer cleanupTimer {"Hashinator cleanup"};
@@ -1211,47 +1369,49 @@ namespace spatial_cell {
 
       phiprof::Timer clearTimer {"GPU clear maps"};
       velocity_block_with_content_list_size = 0;
-      velocity_block_with_content_map->clear(Hashinator::targets::device,stream,false,std::pow(2,vbwcl_sizePower));
-      velocity_block_with_no_content_map->clear(Hashinator::targets::device,stream,false,std::pow(2,vbwncl_sizePower));
-      CHK_ERR( gpuStreamSynchronize(stream) );
+      velocity_block_with_content_list->clear();
+      velocity_block_with_no_content_list->clear();
+      // velocity_block_with_content_map->clear(Hashinator::targets::device,stream,false,std::pow(2,vbwcl_sizePower));
+      // velocity_block_with_no_content_map->clear(Hashinator::targets::device,stream,false,std::pow(2,vbwncl_sizePower));
+      // CHK_ERR( gpuStreamSynchronize(stream) );
       clearTimer.stop();
       phiprof::Timer sizeTimer {"GPU size"};
       const uint nBlocks = populations[popID].vmesh->size();
       if (nBlocks==0) {
          return;
       }
-      CHK_ERR( gpuStreamSynchronize(stream) );
+      // CHK_ERR( gpuStreamSynchronize(stream) );
       sizeTimer.stop();
       phiprof::Timer updateListsTimer {"GPU update spatial cell block lists"};
       const Real velocity_block_min_value = getVelocityBlockMinValue(popID);
-      // Each GPU block / workunit can manage several Vlasiator velocity blocks at once. (TODO FIX)
-      //const uint vlasiBlocksPerWorkUnit = WARPSPERBLOCK * GPUTHREADS / WID3;
-      const uint vlasiBlocksPerWorkUnit = 1;
-      // ceil int division
-      const uint launchBlocks = 1 + ((nBlocks - 1) / vlasiBlocksPerWorkUnit);
+      // // Each GPU block / workunit can manage several Vlasiator velocity blocks at once. (TODO FIX)
+      // //const uint vlasiBlocksPerWorkUnit = WARPSPERBLOCK * GPUTHREADS / WID3;
+      // const uint vlasiBlocksPerWorkUnit = 1;
+      // // ceil int division
+      // const uint launchBlocks = 1 + ((nBlocks - 1) / vlasiBlocksPerWorkUnit);
       //std::cerr<<launchBlocks<<" "<<vlasiBlocksPerWorkUnit<<" vmesh "<<populations[popID].dev_vmesh<<" vbc "<<populations[popID].dev_blockContainer<<" wcm "<<dev_velocity_block_with_content_map<<" wncm "<<dev_velocity_block_with_no_content_map<<" minval "<<velocity_block_min_value<<std::endl;
 
       // Third argument specifies the number of bytes in *shared memory* that is
       // dynamically allocated per block for this call in addition to the statically allocated memory.
       //update_velocity_block_content_lists_kernel<<<GPUBLOCKS, WID3, WID3*sizeof(int), stream>>> (
-      update_velocity_block_content_lists_kernel<<<launchBlocks, (vlasiBlocksPerWorkUnit * WID3), 0, stream>>> (
+      update_velocity_block_content_lists_kernel<<<1, 1, 0, stream>>> (
          populations[popID].dev_vmesh,
          populations[popID].dev_blockContainer,
-         dev_velocity_block_with_content_map,
-         dev_velocity_block_with_no_content_map,
+         dev_velocity_block_with_content_list,
+         dev_velocity_block_with_no_content_list,
          velocity_block_min_value
          );
       CHK_ERR( gpuPeekAtLastError() );
 
-      // Now extract values from the map
-      velocity_block_with_content_map->extractAllKeysLoop(*dev_velocity_block_with_content_list,stream);
+      // // Now extract values from the map
+      // velocity_block_with_content_map->extractAllKeysLoop(*dev_velocity_block_with_content_list,stream);
+      // // split::SplitInfo info;
+      // // Hashinator::MapInfo info_m;
       // split::SplitInfo info;
-      // Hashinator::MapInfo info_m;
-      split::SplitInfo info;
-      velocity_block_with_content_list->copyMetadata(&info, stream);
-      CHK_ERR( gpuStreamSynchronize(stream) );
-      velocity_block_with_content_list_size = info.size;
-      //velocity_block_with_content_list_size = velocity_block_with_content_list->size();
+      // velocity_block_with_content_list->copyMetadata(&info, stream);
+      // CHK_ERR( gpuStreamSynchronize(stream) );
+      //velocity_block_with_content_list_size = info.size;
+      velocity_block_with_content_list_size = velocity_block_with_content_list->size();
    }
 
    void SpatialCell::prefetchDevice() {

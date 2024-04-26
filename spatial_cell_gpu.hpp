@@ -594,6 +594,12 @@ namespace spatial_cell {
       vmesh::LocalID velocity_block_with_content_list_capacity;               /**< Capacity of vector. Cached value.*/
       Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *velocity_block_with_content_map, *velocity_block_with_no_content_map;
       Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *dev_velocity_block_with_content_map, *dev_velocity_block_with_no_content_map;
+
+      split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list;  /**< List of existing cells with content, only up-to-date after call to update_has_content().*/
+      split::SplitVector<vmesh::GlobalID> *dev_velocity_block_with_no_content_list;  /**< List of existing cells with content, only up-to-date after call to update_has_content().*/
+      vmesh::LocalID velocity_block_with_no_content_list_size;                   /**< Size of vector. Needed for MPI communication of size before actual list transfer.*/
+      vmesh::LocalID velocity_block_with_no_content_list_capacity;               /**< Capacity of vector. Cached value.*/
+
       vmesh::LocalID vbwcl_sizePower, vbwncl_sizePower;
       // vmesh::LocalID content_store, nocontent_store;
       Realf* gpu_rhoLossAdjust;
