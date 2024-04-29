@@ -67,7 +67,8 @@ uint gpu_acc_RadixSortTempSize[MAXCPUTHREADS] = {0};
 Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *gpu_map_add[MAXCPUTHREADS];
 Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *gpu_dev_map_add[MAXCPUTHREADS];
 split::SplitVector<vmesh::GlobalID> *gpu_list_with_replace_new[MAXCPUTHREADS];
-split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_delete[MAXCPUTHREADS];
+split::SplitVector<vmesh::GlobalID> *gpu_list_delete[MAXCPUTHREADS];
+// split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_delete[MAXCPUTHREADS];
 split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_to_replace[MAXCPUTHREADS];
 split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_with_replace_old[MAXCPUTHREADS];
 
@@ -440,7 +441,8 @@ __host__ void gpu_blockadjust_allocate_perthread(
    gpu_map_add[cpuThreadID] = ::new (buf) Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>(newSizePower);
    gpu_dev_map_add[cpuThreadID] = gpu_map_add[cpuThreadID]->upload(stream);
    gpu_list_with_replace_new[cpuThreadID] = new split::SplitVector<vmesh::GlobalID>(newSize);
-   gpu_list_delete[cpuThreadID] = new split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>>(newSize);
+   gpu_list_delete[cpuThreadID] = new split::SplitVector<vmesh::GlobalID>(newSize);
+   //gpu_list_delete[cpuThreadID] = new split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>>(newSize);
    gpu_list_to_replace[cpuThreadID] = new split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>>(newSize);
    gpu_list_with_replace_old[cpuThreadID] = new split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>>(newSize);
 

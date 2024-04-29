@@ -175,7 +175,8 @@ extern ColumnOffsets *gpu_columnOffsetData[];
 extern Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *gpu_map_add[];
 extern Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID> *gpu_dev_map_add[];
 extern split::SplitVector<vmesh::GlobalID> *gpu_list_with_replace_new[];
-extern split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_delete[];
+extern split::SplitVector<vmesh::GlobalID> *gpu_list_delete[];
+// extern split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_delete[];
 extern split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_to_replace[];
 extern split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>> *gpu_list_with_replace_old[];
 

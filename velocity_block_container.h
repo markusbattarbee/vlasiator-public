@@ -257,7 +257,8 @@ namespace vmesh {
                         block_data->begin() + WID3*(numberOfBlocks));
       parameters->erase(parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1),
                         parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks));
-
+      block_data->resize(WID3*(numberOfBlocks-1));
+      parameters->resize(BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1));
    }
 
    inline void VelocityBlockContainer::exitInvalidLocalID(const vmesh::LocalID& localID,const std::string& funcName) const {

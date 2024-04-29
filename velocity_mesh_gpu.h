@@ -317,24 +317,24 @@ namespace vmesh {
       #endif
    }
 
-   ARCH_HOSTDEV inline bool VelocityMesh::move(const vmesh::LocalID& sourceLID,const vmesh::LocalID& targetLID) {
-      const vmesh::GlobalID moveGID = localToGlobalMap->at(sourceLID); // block to move (at the end of list)
-      const vmesh::GlobalID removeGID = localToGlobalMap->at(targetLID); // removed block
+   ARCH_HOSTDEV inline bool VelocityMesh::move(const vmesh::LocalID& moveLID,const vmesh::LocalID& removeLID) {
+      const vmesh::GlobalID moveGID = localToGlobalMap->at(moveLID); // block to move (at the end of list)
+      const vmesh::GlobalID removeGID = localToGlobalMap->at(removeLID); // removed block
       #ifdef DEBUG_VMESH
-      if (sourceLID != size()-1) {
+      if (moveLID != size()-1) {
          assert( 0 && "Error! Moving velocity mesh entry from position which is not last LID!");
       }
       #endif
 
       // at-function will throw out_of_range exception for non-existing global ID:
       #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      globalToLocalMap->set_element(moveGID,targetLID);
+      globalToLocalMap->set_element(moveGID,removeLID);
       globalToLocalMap->device_erase(removeGID);
       #else
-      globalToLocalMap->at(moveGID) = targetLID;
+      globalToLocalMap->at(moveGID) = removeLID;
       globalToLocalMap->erase(removeGID);
       #endif
-      localToGlobalMap->at(targetLID) = moveGID;
+      localToGlobalMap->at(removeLID) = moveGID;
       localToGlobalMap->pop_back();
       // Update cached value
       ltg_size = localToGlobalMap->size();
@@ -1304,7 +1304,8 @@ namespace vmesh {
          printf("VMESH CHECK ERROR: cached size mismatch, %lu vs %lu in %s : %d\n",ltg_size,size1,__FILE__,__LINE__);
       }
       #endif
-      return ltg_size;
+      //return ltg_size;
+      return localToGlobalMap->size();
    }
 
    ARCH_HOSTDEV inline size_t VelocityMesh::sizeInBytes() const {
