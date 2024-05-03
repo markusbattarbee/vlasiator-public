@@ -20,7 +20,7 @@ else
         VECTORCLASS = VEC_FALLBACK_GENERIC
 endif
 
-#===== Vector Lenghts ====
+#===== Vector Lengths ====
 # Default for VEC_FALLBACK_GENERIC is WID=4, VECL=8
 # NOTE: A bug currently results in garbage data already on cell init if VECL is not equal to WID2
 #WID=8
@@ -94,7 +94,7 @@ INC_PROFILE = -I$(LIBRARY_PREFIX)/phiprof/include
 
 #======== Header-only Libraries ===========
 
-INC_EIGEN = -isystem $(LIBRARY_PREFIX)/eigen
+INC_EIGEN = -isystem ./submodules/eigen
 INC_DCCRG = -I./submodules/dccrg
 INC_FSGRID = -I./submodules/fsgrid
 INC_HASHINATOR = -isystem ./submodules/hashinator/

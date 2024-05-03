@@ -11,7 +11,7 @@
 # Fallback: VECTORCLASS = VEC_FALLBACK_GENERIC (Defaults to VECL8)
 VECTORCLASS = VEC_FALLBACK_GENERIC
 
-#===== Vector Lenghts ====
+#===== Vector Lengths ====
 # Default for VEC_FALLBACK_GENERIC is WID=4, VECL=8
 # NOTE: A bug currently results in garbage data already on cell init if VECL is not equal to WID2
 #WID=8
@@ -38,7 +38,7 @@ CUDABLOCKS=108
 #-ggdb not available on nvcc
 #-G (device debug) overrides --generate-line-info -line-info but also requires more device-side resources to run
 # use "-Xptxas -v" for verbose output of ptx compilation
-
+# --cudart shared used for Kostis' mempool_ts
 CXXFLAGS = -g -O3 -x cu -std=c++17 --extended-lambda --expt-relaxed-constexpr -gencode arch=compute_80,code=sm_80 --cudart shared --generate-line-info -line-info -Xcompiler="-fopenmp" -Xcompiler="-fpermissive" -maxrregcount 24 -Wno-deprecated-declarations
 testpackage: CXXFLAGS = -g -O2 -x cu -std=c++17 --extended-lambda --expt-relaxed-constexpr -gencode arch=compute_80,code=sm_80 --cudart shared --generate-line-info -line-info -Xcompiler="-fopenmp" -Xcompiler="-fpermissive" -maxrregcount 24 -Wno-deprecated-declarations
 
@@ -93,7 +93,7 @@ LIB_PROFILE = -L$(LIBRARY_PREFIX)/phiprof/lib -lphiprof -Xlinker=-rpath=$(LIBRAR
 
 #======== Header-only Libraries ===========
 
-INC_EIGEN = -isystem $(LIBRARY_PREFIX)/eigen
+INC_EIGEN = -isystem ./submodules/eigen
 INC_FSGRID = -I./submodules/fsgrid
 INC_DCCRG = -I./submodules/dccrg
 INC_HASHINATOR = -isystem ./submodules/hashinator/

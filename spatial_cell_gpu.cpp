@@ -1161,7 +1161,6 @@ namespace spatial_cell {
          neighbours_count = neigh_Nvbwcls.size(); // Only manage neighbours with content.
       }
 
-
       if (neighbours_count > 0) {
          // Upload pointers and counters for neighbours
          vmesh::GlobalID** dev_neigh_vbwcls;
