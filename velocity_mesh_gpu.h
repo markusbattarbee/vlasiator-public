@@ -212,10 +212,10 @@ namespace vmesh {
       #endif
       const size_t size1 = localToGlobalMap->size();
       const size_t size2 = globalToLocalMap->size();
-      if (size1 != ltg_size) {
-         printf("VMESH CHECK ERROR: cached size mismatch, %lu vs %lu in %s : %d\n",ltg_size,size1,__FILE__,__LINE__);
-         return false;
-      }
+      // if (size1 != ltg_size) {
+      //    printf("VMESH CHECK ERROR: cached size mismatch, %lu vs %lu in %s : %d\n",ltg_size,size1,__FILE__,__LINE__);
+      //    return false;
+      // }
       if (size1 != size2) {
          printf("VMESH CHECK ERROR: sizes differ, %lu vs %lu in %s : %d\n",size1,size2,__FILE__,__LINE__);
          return false;
@@ -593,23 +593,45 @@ namespace vmesh {
 
       #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       // device_insert is slower, returns true or false for whether inserted key was new
-      // globalToLocalMap->set_element(globalID,(vmesh::LocalID)mySize);
-      // localToGlobalMap->device_push_back(globalID);
-      auto position
-         = globalToLocalMap->device_insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
-      if (position.second == true) {
+      auto it = globalToLocalMap->device_find(globalID);
+      if (it == globalToLocalMap->device_end()) {
+         // auto position
+         //    = globalToLocalMap->device_insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
+         // if (position.second == true) {
+         //    localToGlobalMap->device_push_back(globalID);
+         //    ltg_size++;
+         // }
+         globalToLocalMap->set_element(globalID,(vmesh::LocalID)mySize);
          localToGlobalMap->device_push_back(globalID);
          ltg_size++;
+         return true;
+      } else {
+         return false;
       }
       #else
-      auto position
-         = globalToLocalMap->insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
-      if (position.second == true) {
+      auto it = globalToLocalMap->find(globalID);
+      if (it == globalToLocalMap->end()) {
+         // auto position
+         //    = globalToLocalMap->device_insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
+         // if (position.second == true) {
+         //    localToGlobalMap->device_push_back(globalID);
+         //    ltg_size++;
+         // }
+         auto position = globalToLocalMap->insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
          localToGlobalMap->push_back(globalID);
          ltg_size++;
+         return true;
+      } else {
+         return false;
       }
+      // auto position
+      //    = globalToLocalMap->insert(Hashinator::make_pair(globalID,(vmesh::LocalID)mySize));
+      // if (position.second == true) {
+      //    localToGlobalMap->push_back(globalID);
+      //    ltg_size++;
+      // }
       #endif
-      return position.second;
+      // return position.second;
    }
    inline vmesh::LocalID VelocityMesh::push_back(const std::vector<vmesh::GlobalID>& blocks) {
       gpuStream_t stream = gpu_getStream();
@@ -1299,11 +1321,11 @@ namespace vmesh {
 
    ARCH_HOSTDEV inline size_t VelocityMesh::size() const {
       //return localToGlobalMap->size();
-      #ifdef DEBUG_VMESH
-      if (ltg_size != localToGlobalMap->size()) {
-         printf("VMESH CHECK ERROR: cached size mismatch, %lu vs %lu in %s : %d\n",ltg_size,size1,__FILE__,__LINE__);
-      }
-      #endif
+      // #ifdef DEBUG_VMESH
+      // if (ltg_size != localToGlobalMap->size()) {
+      //    printf("VMESH CHECK ERROR: cached size mismatch, %lu vs %lu in %s : %d\n",ltg_size,localToGlobalMap->size(),__FILE__,__LINE__);
+      // }
+      // #endif
       //return ltg_size;
       return localToGlobalMap->size();
    }

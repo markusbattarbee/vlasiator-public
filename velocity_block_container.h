@@ -253,12 +253,16 @@ namespace vmesh {
          (*parameters)[target*BlockParams::N_VELOCITY_BLOCK_PARAMS+i] = (*parameters)[source*BlockParams::N_VELOCITY_BLOCK_PARAMS+i];
       }
       // and remove last entry
-      block_data->erase(block_data->begin() + WID3*(numberOfBlocks-1),
-                        block_data->begin() + WID3*(numberOfBlocks));
-      parameters->erase(parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1),
-                        parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks));
-      block_data->resize(WID3*(numberOfBlocks-1));
-      parameters->resize(BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1));
+      // block_data->erase(block_data->begin() + WID3*(numberOfBlocks-1),
+      //                   block_data->begin() + WID3*(numberOfBlocks));
+      // parameters->erase(parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1),
+      //                   parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks));
+      block_data->erase(block_data->begin() + WID3*source,
+                        block_data->begin() + WID3*(source+1));
+      parameters->erase(parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(source),
+                        parameters->begin() + BlockParams::N_VELOCITY_BLOCK_PARAMS*(source+1));
+      // block_data->resize(WID3*(numberOfBlocks-1));
+      // parameters->resize(BlockParams::N_VELOCITY_BLOCK_PARAMS*(numberOfBlocks-1));
    }
 
    inline void VelocityBlockContainer::exitInvalidLocalID(const vmesh::LocalID& localID,const std::string& funcName) const {

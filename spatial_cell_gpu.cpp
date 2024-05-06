@@ -47,7 +47,7 @@ __global__ void __launch_bounds__(WID3,4) update_velocity_block_content_lists_ke
    ) {
    // const int gpuBlocks = gridDim.x;
    // const int blocki = blockIdx.x;
-   // const uint ti = threadIdx.x;
+   const uint ti = threadIdx.x;
 
    // // Each GPU block / workunit can manage several Vlasiator velocity blocks at once.
    // const uint vlasiBlocksPerWorkUnit = 1;
@@ -65,11 +65,11 @@ __global__ void __launch_bounds__(WID3,4) update_velocity_block_content_lists_ke
       const vmesh::GlobalID blockGID = vmesh->getGlobalID(blockLID);
       #ifdef DEBUG_SPATIAL_CELL
       if (blockGID == vmesh->invalidGlobalID()) {
-         if (b_tid==0) printf("Invalid GID encountered in update_velocity_block_content_lists_kernel!\n");
+         if (ti==0) printf("Invalid GID encountered in update_velocity_block_content_lists_kernel!\n");
          continue;
       }
       if (blockLID == vmesh->invalidLocalID()) {
-         if (b_tid==0) printf("Invalid LID encountered in update_velocity_block_content_lists_kernel!\n");
+         if (ti==0) printf("Invalid LID encountered in update_velocity_block_content_lists_kernel!\n");
          continue;
       }
       #endif
@@ -82,6 +82,7 @@ __global__ void __launch_bounds__(WID3,4) update_velocity_block_content_lists_ke
             break;
          }
       }
+      __syncthreads();
       if (content) {
          velocity_block_with_content_list->device_push_back(blockGID);
          //vbwcl_map->warpInsert(blockGID,blockLID,b_tid);
@@ -210,7 +211,6 @@ __global__ void update_neighbour_halo_kernel (
       const vmesh::GlobalID nGID = (dev_neigh_vbwcls[neigh_i])[blockLID];
       dev_map_add->set_element(nGID,blockLID);
    }
-
    
    //    const vmesh::GlobalID nGID = (dev_neigh_vbwcls[neigh_i])[myindex];
    //    // Does block already exist in mesh?
@@ -231,7 +231,7 @@ __global__ void update_neighbour_halo_kernel (
    // }
 }
 
-/** Silly serial Gpu Kernel to delete blocks
+/** Silly serial Gpu Kernel to delete blocks (regular block adjust)
 */
 //__launch_bounds__(GPUTHREADS,4)
 __global__ void delete_blocks_kernel (
@@ -240,15 +240,16 @@ __global__ void delete_blocks_kernel (
    split::SplitVector<vmesh::GlobalID> *velocity_block_with_no_content_list,
    Hashinator::Hashmap<vmesh::GlobalID,vmesh::LocalID>* dev_map_add
    ) {
-
    const uint startsize = velocity_block_with_no_content_list->size();
+   //printf("start block adjust, sizes: wncl %u map_add %u\n",velocity_block_with_no_content_list->size(),dev_map_add->size());
+   //uint kept=0, removed=0;
    for (int block_index = startsize-1; block_index>=0; --block_index) {
       const vmesh::GlobalID blockGID = velocity_block_with_no_content_list->at(block_index);
-      bool removeBlock = false;
-      if (dev_map_add->count(blockGID) == 0) {
-         removeBlock = true;
-      }
-      if (removeBlock == true) {
+
+      auto it = dev_map_add->device_find(blockGID);
+      if (it == dev_map_add->device_end()) {
+      // bool removeBlock = false;
+      // if (dev_map_add->count(blockGID) == 0) {
          //No content, and also no neighbor have content -> remove
          //and increment rho loss counters
          const vmesh::LocalID removedLID = vmesh->getLocalID(blockGID);
@@ -274,10 +275,15 @@ __global__ void delete_blocks_kernel (
             vmesh->move(lastLID,removedLID);
             blockContainer->move(lastLID,removedLID);
          }
+         //removed++;
+         //printf("ind %u LID %u lastLID %u\n",block_index,removedLID,lastLID);
+      } else {
+         //kept++;
       }
    }
+   //printf(" KEPT %u cells, REMOVED %u cells.\n",kept, removed);
 }
-/** Silly serial Gpu Kernel to delete blocks
+/** Silly serial Gpu Kernel to delete blocks (mid-acc)
 */
 //__launch_bounds__(GPUTHREADS,4)
 __global__ void delete_blocks_kernel_2 (
@@ -288,6 +294,7 @@ __global__ void delete_blocks_kernel_2 (
    ) {
 
    const uint startsize = list_delete->size();
+   //uint removed=0;
    for (int block_index = startsize-1; block_index>=0; --block_index) {
       const vmesh::GlobalID blockGID = list_delete->at(block_index);
       //No content, and also no neighbor have content -> remove
@@ -315,7 +322,10 @@ __global__ void delete_blocks_kernel_2 (
          vmesh->move(lastLID,removedLID);
          blockContainer->move(lastLID,removedLID);
       }
+      //printf("ind %u LID %u lastLID %u\n",block_index,removedLID,lastLID);
+      //removed++;
    }
+   //printf(" ACC REMOVED %u cells.\n", removed);
 }
 
 /** Silly serial Gpu Kernel to add blocks
@@ -342,7 +352,7 @@ __global__ void add_blocks_kernel (
       // Set block parameters:
       //      Real* parameters = get_block_parameters(populations[popID].vmesh.getLocalID(block));
       Real* parameters = blockContainer->getParameters(VBC_LID);
-      vmesh->getBlockInfo(block, parameters + VBC_LID * BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VXCRD);
+      vmesh->getBlockInfo(block, parameters + BlockParams::VXCRD);
    }
 }
 /** Silly serial Gpu Kernel to add blocks
@@ -371,7 +381,7 @@ __global__ void add_blocks_kernel_2 (
       // Set block parameters:
       //      Real* parameters = get_block_parameters(populations[popID].vmesh.getLocalID(block));
       Real* parameters = blockContainer->getParameters(VBC_LID);
-      vmesh->getBlockInfo(block, parameters + VBC_LID * BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VXCRD);
+      vmesh->getBlockInfo(block, parameters + BlockParams::VXCRD);
    }
 }
 
@@ -1219,24 +1229,31 @@ namespace spatial_cell {
 
       CHK_ERR( gpuStreamSynchronize(stream) );
       if (doDeleteEmptyBlocks) {
+         //uint presize=populations[popID].vmesh->size();
          delete_blocks_kernel<<<1, 1, 0, stream>>> (
             populations[popID].dev_vmesh,
             populations[popID].dev_blockContainer,
             dev_velocity_block_with_no_content_list,
             dev_map_add
             );
+         CHK_ERR( gpuStreamSynchronize(stream) );      
+         //std::cerr<<"went from "<<presize<<" down to "<<populations[popID].vmesh->size()<<" blocks with map_add size "<<map_add->size()<<std::endl;
       }
       CHK_ERR( gpuStreamSynchronize(stream) );
+      //std::cout<<std::flush;
       //populations[popID].vmesh->updateCachedSize();
       populations[popID].vmesh->setNewCapacity((populations[popID].vmesh->size() + map_add->size())*BLOCK_ALLOCATION_PADDING);
       populations[popID].blockContainer->setNewCapacity((populations[popID].vmesh->size() + map_add->size())*BLOCK_ALLOCATION_PADDING);
       populations[popID].Upload();
+      //uint presize=populations[popID].vmesh->size();
       add_blocks_kernel<<<1, 1, 0, stream>>> (
          populations[popID].dev_vmesh,
          populations[popID].dev_blockContainer,
          dev_map_add
          );
       CHK_ERR( gpuStreamSynchronize(stream) );
+      //std::cout<<std::flush;
+      //std::cerr<<" and from "<<presize<<"   up to "<<populations[popID].vmesh->size()<<" blocks."<<std::endl;
       //populations[popID].vmesh->updateCachedSize();
       
       // /** Rules used in extracting keys or elements from hashmaps
@@ -1290,7 +1307,7 @@ namespace spatial_cell {
       const size_t vmeshSize = (populations[popID].vmesh)->size();
       const size_t vbcSize = (populations[popID].blockContainer)->size();
       if (vmeshSize != vbcSize) {
-         printf("ERROR: population vmesh %zu and blockcontainer %zu sizes do not match!\n",vmeshSize,vbcSize);
+         printf("ERROR: population vmesh %u and blockcontainer %u sizes do not match!\n",vmeshSize,vbcSize);
       }
       #endif
       #ifdef DEBUG_VLASIATOR
@@ -1316,24 +1333,35 @@ namespace spatial_cell {
       split::SplitVector<vmesh::GlobalID> *list_delete = gpu_list_delete[cpuThreadID];
       // split::SplitVector<Hashinator::hash_pair<vmesh::GlobalID,vmesh::LocalID>>* list_delete = gpu_list_delete[cpuThreadID];
 
+      populations[popID].vmesh->setNewCapacity((populations[popID].vmesh->size())*BLOCK_ALLOCATION_PADDING);
+      populations[popID].blockContainer->setNewCapacity((populations[popID].vmesh->size() + list_with_replace_new->size() - list_delete->size())*BLOCK_ALLOCATION_PADDING);
+      populations[popID].Upload();
+      
       CHK_ERR( gpuStreamSynchronize(stream) );
+      //uint presize=populations[popID].vmesh->size();
       delete_blocks_kernel_2<<<1, 1, 0, stream>>> (
          populations[popID].dev_vmesh,
          populations[popID].dev_blockContainer,
          list_delete
          );
-
+      CHK_ERR( gpuPeekAtLastError() );
+      //std::cout<<std::flush;
       CHK_ERR( gpuStreamSynchronize(stream) );
+      //std::cerr<<" ACC went from "<<presize<<" down to "<<populations[popID].vmesh->size()<<" blocks. list_delete size: "<<list_delete->size()<<std::endl;
       //populations[popID].vmesh->updateCachedSize();
       populations[popID].vmesh->setNewCapacity((populations[popID].vmesh->size() + list_with_replace_new->size())*BLOCK_ALLOCATION_PADDING);
       populations[popID].blockContainer->setNewCapacity((populations[popID].vmesh->size() + list_with_replace_new->size())*BLOCK_ALLOCATION_PADDING);
       populations[popID].Upload();
+      //presize=populations[popID].vmesh->size();
       add_blocks_kernel_2<<<1, 1, 0, stream>>> (
          populations[popID].dev_vmesh,
          populations[popID].dev_blockContainer,
          list_with_replace_new
          );
+      CHK_ERR( gpuPeekAtLastError() );
       CHK_ERR( gpuStreamSynchronize(stream) );
+      //std::cout<<std::flush;
+      //std::cerr<<" ACC  and from "<<presize<<"   up to "<<populations[popID].vmesh->size()<<" blocks. list_add size: "<<list_with_replace_new->size()<<std::endl;
 
       return populations[popID].vmesh->size();
       //populations[popID].vmesh->updateCachedSize();
@@ -1419,21 +1447,21 @@ namespace spatial_cell {
       // addRemoveKernelTimer.stop();
 
       // DEBUG output after kernel
-      #ifdef DEBUG_SPATIAL_CELL
-      const vmesh::LocalID nAll = populations[popID].vmesh->size();
-      if (nAll!=nBlocksAfterAdjust) {
-         //phiprof::Timer debugTimer {"Vmesh and VBC debug output"};
-         populations[popID].vmesh->gpu_prefetchHost();
-         CHK_ERR( gpuStreamSynchronize(stream) );
-         printf("after kernel, size is %d should be %d\n",nAll,nBlocksAfterAdjust);
-         for (vmesh::LocalID m=0; m<nAll; ++m) {
-            const vmesh::GlobalID GIDs = populations[popID].vmesh->getGlobalID(m);
-            const vmesh::LocalID LIDs = populations[popID].vmesh->getLocalID(GIDs);
-            printf("LID %d GID-solved %d LID-solved %d\n",m,GIDs,LIDs);
-         }
-         populations[popID].vmesh->gpu_prefetchDevice();
-      }
-      #endif
+      // #ifdef DEBUG_SPATIAL_CELL
+      // const vmesh::LocalID nAll = populations[popID].vmesh->size();
+      // if (nAll!=nBlocksAfterAdjust) {
+      //    //phiprof::Timer debugTimer {"Vmesh and VBC debug output"};
+      //    populations[popID].vmesh->gpu_prefetchHost();
+      //    CHK_ERR( gpuStreamSynchronize(stream) );
+      //    printf("after kernel, size is %d should be %d\n",nAll,nBlocksAfterAdjust);
+      //    for (vmesh::LocalID m=0; m<nAll; ++m) {
+      //       const vmesh::GlobalID GIDs = populations[popID].vmesh->getGlobalID(m);
+      //       const vmesh::LocalID LIDs = populations[popID].vmesh->getLocalID(GIDs);
+      //       printf("LID %d GID-solved %d LID-solved %d\n",m,GIDs,LIDs);
+      //    }
+      //    populations[popID].vmesh->gpu_prefetchDevice();
+      // }
+      // #endif
       //return nBlocksAfterAdjust;
    }
 
