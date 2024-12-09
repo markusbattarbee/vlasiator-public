@@ -611,7 +611,7 @@ namespace DRO {
          Real averageVX = this->averageVX, averageVY = this->averageVY, averageVZ = this->averageVZ;
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lsum ){
 
                                              const Realf *block_data = VBC->getData(n);
@@ -672,7 +672,7 @@ namespace DRO {
          Real averageVX = this->averageVX, averageVY = this->averageVY, averageVZ = this->averageVZ;
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -731,7 +731,7 @@ namespace DRO {
          Real thermalV2 = thermalV[2];
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -792,7 +792,7 @@ namespace DRO {
          Real thermalV2 = thermalV[2];
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -866,7 +866,7 @@ namespace DRO {
          Real thermalV2 = thermalV[2];
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -931,7 +931,7 @@ namespace DRO {
          Real thermalVZ = thermalV[2];
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -1383,7 +1383,7 @@ namespace DRO {
 
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum )-> void {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -1512,7 +1512,7 @@ namespace DRO {
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lsum ){
                const Realf *block_data = VBC->getData(n);
                const Real *block_parameters = VBC->getParameters(n);
@@ -1627,7 +1627,7 @@ namespace DRO {
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint n, Real *lsum ) {
 
                                              const Realf *block_data = VBC->getData(n);
@@ -1713,7 +1713,7 @@ namespace DRO {
          Real sum[3] = {0.0, 0.0, 0.0};
          Real averageVX = this->averageVX, averageVY = this->averageVY, averageVZ = this->averageVZ;
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lsum ){
                           const Realf *block_data = VBC->getData(n);
                           const Real *block_parameters = VBC->getParameters(n);
@@ -1816,7 +1816,7 @@ namespace DRO {
          Real T_perp_local = T_perp;
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
             ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lthread_epsilon_sum ){
                const Realf *block_data = VBC->getData(n);
                const Real *block_parameters = VBC->getParameters(n);
@@ -1930,7 +1930,7 @@ namespace DRO {
          Real b_perp2Z = b_perp2[2];
 
          if (cell->get_number_of_velocity_blocks(popID) != 0)
-         arch::parallel_reduce<arch::sum>({WID, WID, WID, (uint)cell->get_number_of_velocity_blocks(popID)},
+         arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, (uint)cell->get_number_of_velocity_blocks(popID)},
                                           ARCH_LOOP_LAMBDA(const uint i, const uint j, const uint k, const uint n, Real *lsum ){
           const Realf *block_data = VBC->getData(n);
           const Real *block_parameters = VBC->getParameters(n);

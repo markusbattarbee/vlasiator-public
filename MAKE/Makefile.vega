@@ -1,0 +1,87 @@
+# Suggested modules (by VEGA support)
+#
+# ml  NVHPC/24.9   2) CUDA/12.6.0
+# Build libraries with ./build_libraries.sh vega
+# However: does not compile.
+
+#======== Vectorization ==========
+#Set vector backend type for vlasov solvers, sets precision and length.
+#Options:
+# AVX:	    VEC4D_AGNER, VEC4F_AGNER, VEC8F_AGNER
+# AVX512:   VEC8D_AGNER, VEC16F_AGNER
+# Fallback: VECTORCLASS = VEC_FALLBACK_GENERIC (Defaults to VECL8)
+VECTORCLASS = VEC_FALLBACK_GENERIC
+
+#===== Vector Lengths ====
+# Default for VEC_FALLBACK_GENERIC is WID=4, VECL=8
+# NOTE: A bug currently results in garbage data already on cell init if VECL is not equal to WID2
+#WID=8
+#VECL=64
+WID=4
+VECL=16
+
+#======== Libraries ===========
+LIBRARY_PREFIX = libraries-vega
+
+#======= Compiler and compilation flags =========
+# NOTES on compiler flags:
+# CXXFLAGS is for compiler flags, they are always used
+# MATHFLAGS are for special math etc. flags, these are only applied on solver functions
+# LDFLAGS flags for linker (enforced via LNK command in CUDA compilation)
+# Important note: Do not edit COMPFLAGS in this file!
+
+USE_CUDA=1
+
+# -ggdb not available on nvcc
+# -G (device debug) overrides --generate-line-info -line-info but also requires more device-side resources to run
+# use "-Xptxas -v" for verbose output of ptx compilation
+# --cudart shared used for Kostis' mempool_ts
+
+CXXFLAGS = -g -O3 -x cu -std=c++17 --extended-lambda --expt-relaxed-constexpr -gencode arch=compute_80,code=sm_80 --cudart shared --generate-line-info -line-info -Xcompiler="-fopenmp" -Xcompiler="-fpermissive" -maxrregcount 24 -Wno-deprecated-declarations
+
+testpackage: CXXFLAGS = -g -O2 -x cu -std=c++17 --extended-lambda --expt-relaxed-constexpr -gencode arch=compute_80,code=sm_80 --cudart shared --generate-line-info -line-info -Xcompiler="-fopenmp" -Xcompiler="-fpermissive" -maxrregcount 24 -Wno-deprecated-declarations
+
+# Tell mpic++ to use nvcc for all compiling
+CMP = OMPI_CXX='nvcc' OMPI_CXXFLAGS='' mpic++
+#CMP = mpic++
+
+# Now tell also the linker to use nvcc. Contents of these were retrieved with "mpic++ --showme:link". Replace -Wl,rpath= with -Xlinker=-rpath=
+#### Use this same linker command also for building and linking phiprof.
+# The line below indeed uses OMPI_CXX, not OMPI_LD
+
+#LNK = OMPI_CXX='nvcc' OMPI_CXXFLAGS='-arch=sm_80' OMPI_LIBS='-Xlinker=-L/cvmfs/sling.si/modules/el7/software/OpenMPI/4.1.4-NVHPC-22.7-CUDA-11.7.0/lib -Xlinker=-L/cvmfs/sling.si/modules/el7/software/hwloc/2.7.1-GCCcore-11.3.0/lib -Xlinker=-L/cvmfs/sling.si/modules/el7/software/libevent/2.1.12-GCCcore-11.3.0/lib -Xlinker=-rpath=/cvmfs/sling.si/modules/el7/software/OpenMPI/4.1.4-NVHPC-22.7-CUDA-11.7.0/lib -Xlinker=-rpath=/cvmfs/sling.si/modules/el7/software/hwloc/2.7.1-GCCcore-11.3.0/lib -Xlinker=-rpath=/cvmfs/sling.si/modules/el7/software/libevent/2.1.12-GCCcore-11.3.0/lib -Xlinker=--enable-new-dtags -lmpi -Xlinker=-rpath=$(CURDIR)/$(LIBRARY_PREFIX)/lib' OMPI_LDFLAGS='-O2 -g -G -lnvToolsExt -lgomp' mpic++
+
+LNK = OMPI_CXX='nvcc' OMPI_CXXFLAGS='-arch=sm_80' OMPI_LIBS='-pthread -Xlinker=-L/ceph/hpc/software/nvidia/hpc_sdk/Linux_x86_64/24.9/comm_libs/12.6/hpcx/hpcx-2.20/ompi/lib -Xlinker=-rpath -Wl,/ceph/hpc/software/nvidia/hpc_sdk/Linux_x86_64/24.9/comm_libs/12.6/hpcx/hpcx-2.20/ompi/lib -Xlinker=--enable-new-dtags -lmpi -Xlinker=-rpath=$(CURDIR)/$(LIBRARY_PREFIX)/lib'  OMPI_LDFLAGS='-O2 -g -G -lnvToolsExt -lgomp' mpic++
+#LNK = mpic++
+#LDFLAGS = -O2 -g -G -lnvToolsExt -lgomp -Xlinker=-rpath=$(CURDIR)/$(LIBRARY_PREFIX)/lib
+
+MATHFLAGS = --use_fast_math
+# nvcc fast_math does not assume only finite math
+testpackage: MATHFLAGS = --prec-sqrt=true --prec-div=true --ftz=false --fmad=false
+
+#======== PAPI ==========
+#Add PAPI_MEM define to use papi to report memory consumption?
+#CXXFLAGS += -DPAPI_MEM
+#testpackage: CXXFLAGS += -DPAPI_MEM
+
+#======== Allocator =========
+#NOTE: jemalloc not supported with GPUs
+
+#======== Compiled Libraries ===========
+INC_BOOST = -isystem $(LIBRARY_PREFIX)/include
+LIB_BOOST = -L$(LIBRARY_PREFIX)/lib -lboost_program_options
+
+#INC_PAPI = -isystem $(LIBRARY_PREFIX)/include
+#LIB_PAPI = -L$(LIBRARY_PREFIX)/lib -lpapi
+
+INC_ZOLTAN = -isystem /$(LIBRARY_PREFIX)/include
+LIB_ZOLTAN = -L$(LIBRARY_PREFIX)/lib -lzoltan
+
+INC_VLSV = -I$(LIBRARY_PREFIX)/include
+LIB_VLSV = -L$(LIBRARY_PREFIX)/lib -lvlsv
+
+INC_PROFILE = -I$(LIBRARY_PREFIX)/include
+LIB_PROFILE = -L$(LIBRARY_PREFIX)/lib -lphiprof
+
+#======== Header-only Libraries ===========
+# included as submodules

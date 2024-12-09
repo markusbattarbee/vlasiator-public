@@ -45,25 +45,28 @@ else
    git clone -b appleM1Build https://github.com/ursg/vlsv.git
 fi
 cd vlsv
+cp $WORKSPACE/vlsv_Makefile ./Makefile
 make
 cp libvlsv.a $WORKSPACE/libraries${PLATFORM}/lib
 cp *.h $WORKSPACE/libraries${PLATFORM}/include
 cd ..
 
 # Build papi
-if [[ $PLATFORM != "-arriesgado" && $PLATFORM != "-appleM1" ]]; then  # This fails on RISCV and MacOS
+if [[ $PLATFORM != "-arriesgado" && $PLATFORM != "-appleM1" && $PLATFORM != "-vega" ]]; then  # This fails on RISCV and MacOS and VEGA
    git clone https://github.com/icl-utk-edu/papi
    cd papi/src
-   ./configure --prefix=$WORKSPACE/libraries${PLATFORM} CC=mpicc CXX=mpic++ && make -j 4 && make install
+   ./configure --prefix=$WORKSPACE/libraries${PLATFORM} cc=mpicc CC=mpic++ CXX=mpic++ && make -j 4 && make install
    cd ../..
 fi
 
 # Build jemalloc
-curl -O -L https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2
-tar xjf jemalloc-5.3.0.tar.bz2
-cd jemalloc-5.3.0
-./configure --prefix=$WORKSPACE/libraries${PLATFORM} --with-jemalloc-prefix=je_ CC=mpicc CXX=mpic++ && make -j 4 && make install
-cd ..
+if [[ $PLATFORM != "-leonardo_booster" && $PLATFORM != "-vega" && $PLATFORM != "-lumi-g" && $PLATFORM != "-mahti-cuda" ]]; then  # This fails on RISCV and MacOS
+   curl -O -L https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2
+   tar xjf jemalloc-5.3.0.tar.bz2
+   cd jemalloc-5.3.0
+   ./configure --prefix=$WORKSPACE/libraries${PLATFORM} --with-jemalloc-prefix=je_ CC=mpicc CXX=mpic++ && make -j 4 && make install
+   cd ..
+fi
 
 # Build Zoltan
 git clone https://github.com/sandialabs/Zoltan.git
@@ -73,12 +76,13 @@ if [[ $PLATFORM == "-arriesgado" ]]; then
    ../Zoltan/configure --prefix=$WORKSPACE/libraries${PLATFORM} --enable-mpi --with-mpi-compilers --with-gnumake --with-id-type=ullong --host=riscv64-unknown-linux-gnu --build=arm-linux-gnu && make -j 4 && make install
 else
    ../Zoltan/configure --prefix=$WORKSPACE/libraries${PLATFORM} --enable-mpi --with-mpi-compilers --with-gnumake --with-id-type=ullong CC=mpicc CXX=mpic++ && make -j 4 && make install
-cd ..
+#    ../Zoltan/configure --prefix=$WORKSPACE/libraries${PLATFORM} --enable-mpi --with-mpi-compilers --with-gnumake --with-id-type=ullong CC="OMPI_CXX='nvcc' OMPI_CXXFLAGS='' mpic++" CXX="OMPI_CXX='nvcc' OMPI_CXXFLAGS='' mpic++" && make -j 4 && make install
+    cd ..
 fi
 
 
 # Build boost
-if [[ $PLATFORM == "-hile" || $PLATFORM == "-leonardo_booster" || $PLATFORM == "-leonardo_dcgp" ]]; then
+if [[ $PLATFORM == "-hile" || $PLATFORM == "-leonardo_booster" || $PLATFORM == "-leonardo_dcgp" || $PLATFORM == "-vega" ]]; then
     echo "### Downloading boost. ###"
     wget -q https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz
     echo "### Extracting boost. ###"

@@ -76,7 +76,7 @@ void blockVelocityFirstMoments(
    REAL (&array)[SIZE],
    uint nBlocks) {
 
-   arch::parallel_reduce<arch::sum>({WID, WID, WID, nBlocks},
+   arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, nBlocks},
      ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint blockLID, Real *lsum ) {
 
        Realf *data = blockContainer->getData();
@@ -119,7 +119,7 @@ void blockVelocitySecondMoments(
    REAL (&array)[SIZE],
    uint nBlocks) {
 
-   arch::parallel_reduce<arch::sum>({WID, WID, WID, nBlocks},
+   arch::parallel_reduce<arch::sum>({(uint)WID, (uint)WID, (uint)WID, nBlocks},
      ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint blockLID, Real *lsum ) {
 
        Realf *data = blockContainer->getData();
