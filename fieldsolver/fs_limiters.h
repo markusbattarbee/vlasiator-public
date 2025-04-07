@@ -101,7 +101,9 @@ template<typename T> inline T vanLeer(const T& left,const T& cent,const T& right
 
 
 template<typename T> inline T limiter(const T& left,const T& cent,const T& rght) {
-   return vanLeer(left,cent,rght);
+   //return vanLeer(left,cent,rght);
+   // Attempt to use more diffusive limiter in order to curtail field solver oscillations
+   return minmod(left,cent,rght);
 }
 
 /*! Select the limiter to be used in the field solver. */
