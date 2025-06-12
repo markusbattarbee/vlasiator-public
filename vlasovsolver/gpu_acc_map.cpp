@@ -952,7 +952,7 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
    const uint cellOffset = parallelOffsetIndex + cumulativeOffset;
 
    // This is launched with block size (WID,WID,WID)
-   // const int ti = threadIdx.z*blockDim.x*blockDim.y + threadIdx.y*blockDim.x + threadIdx.x;
+   const int ti = threadIdx.z*blockDim.x*blockDim.y + threadIdx.y*blockDim.x + threadIdx.x;
 
    // Indexes into transposed data blocks
    const int i = threadIdx.x;
@@ -977,6 +977,13 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
       return;
    }
 
+   // Pre-computed constant target cell within block
+   const int tcell = i * gpu_cell_indices_to_id[0]
+      + j * gpu_cell_indices_to_id[1] + k * gpu_cell_indices_to_id[2];
+
+   // Gather contributions through loops into shared memory buffer, only write into global memory once
+   extern __shared__ Realf sharedBlockData[];
+
    // Kernel must loop over all columns in set to ensure correct writes
    for (uint column = columnData->setColumnOffsets[setIndex];
         column < columnData->setColumnOffsets[setIndex] + columnData->setNumColumns[setIndex] ;
@@ -986,19 +993,17 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
       const vmesh::LocalID nBlocks = columnData->columnNumBlocks[column];
       const int col_i = columnData->i[column];
       const int col_j = columnData->j[column];
-      // Target block-k values for column
+
+      // Target block-k extents for column
       const int col_mink = columnData->minBlockK[column];
       const int col_maxk = columnData->maxBlockK[column];
       const size_t stencilDataOffset = (columnData->columnBlockOffsets[column] + 2*column) * WID3;
 
-      // Intersection for this cell
-      const Realf intersection_min =
-         intersection
-         + intersection_di * (Realf)(col_i * WID + i)
-         + intersection_dj * (Realf)(col_j * WID + j);
-      // Pre-computed constant target offset contribution
-      const int target_cell_index_common = i * gpu_cell_indices_to_id[0]
-         + j * gpu_cell_indices_to_id[1];
+      // Reset shared memory buffer for this column
+      for (int di = col_mink; di <= col_maxk; ++di) {
+         sharedBlockData[di*WID3 + ti] = 0;
+      }
+      __threadfence();
 
       // Min/max intersections per block
       const Realf gk_intersection_min =
@@ -1010,25 +1015,35 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
          + intersection_di * (Realf)(col_i * WID + ( intersection_di < 0 ? 0 : WID-1 ))
          + intersection_dj * (Realf)(col_j * WID + ( intersection_dj < 0 ? 0 : WID-1 ));
 
+      // Intersection for this cell
+      const Realf intersection_min =
+         intersection
+         + intersection_di * (Realf)(col_i * WID + i)
+         + intersection_dj * (Realf)(col_j * WID + j);
+
       // Loop over blocks in column
       for (uint b = 0; b < nBlocks; b++) {
          const size_t blockOffset = WID * b; // in units k
+
+         // Min/max Velocity coordinates in acceleration direction for this block
+         const Realf min_lagrangian_v_l = v_r0 + blockOffset * dv;
+         const Realf max_lagrangian_v_r = v_r0 + (blockOffset + WID) * dv;
+
+         // Column target k-index extent indexing for whole block
+         // min-value decreased by (WID-1) so even last slice in GPU block gets to calculate first index
+         const int blockMinGk = std::floor((min_lagrangian_v_l - gk_intersection_max)/intersection_dk) - (WID-1);
+         const int blockMaxGk = std::ceil((max_lagrangian_v_r - gk_intersection_min)/intersection_dk);
+         // Truncate to possible output block values
+         const int minGk = std::max(blockMinGk, col_mink * WID);
+         const int maxGk = std::min(blockMaxGk, (col_maxk + 1) * WID - 1);
+
          // Velocity coordinate in acceleration direction
          const Realf v_l = v_r0 + (blockOffset + k) * dv;
          const Realf v_r = v_r0 + (blockOffset + k + 1) * dv;
 
-         // Min/max Velocity coordinates in acceleration direction for this block
-         const Realf min_lagrangian_v_l = v_r0 + blockOffset * dv;
-         const Realf max_lagrangian_v_r = v_r0 + (blockOffset + WID + 1) * dv; // is +WID enough?
-
-         // Indexing for this cell
+         // Valid target k-indexing for this cell
          const int lagrangian_gk_l = trunc((v_l-intersection_min)/intersection_dk);
          const int lagrangian_gk_r = trunc((v_r-intersection_min)/intersection_dk);
-
-         // Truncated extent indexing for whole block (accounting for column target k extents)
-         // Add -WID at before and +WID at end to be on the safe side, unnecessary loops are passed quickly.
-         const int minGk = std::max(int(trunc((min_lagrangian_v_l - gk_intersection_max)/intersection_dk)), col_mink * WID) - WID;
-         const int maxGk = std::min(int(trunc((max_lagrangian_v_r - gk_intersection_min)/intersection_dk)), (col_maxk + 1) * WID -1 ) + WID;
 
          // Compute reconstruction coefficients using WID2 as stride per slice
          // read from the offset for this column + the count of source blocks + 1 for an empty source block to begin with
@@ -1054,10 +1069,8 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
          for(int loopgk = minGk; loopgk <= maxGk; loopgk++) {
             // Each slice within the threadblock needs to consider a different gk value so writes don't overlap
             const int gk = loopgk+k;
-            // // Does this cell need to consider this target gk?
+            // Does this cell need to consider this target gk?
             if (gk >= lagrangian_gk_l && gk <= lagrangian_gk_r) {
-               const int blockK = gk/WID;
-               const int gk_mod_WID = (gk - blockK * WID);
                // the velocities between which we will integrate, in order to put mass
                // into the target cell. If both v_r and v_l are in same cell
                // then v_1,v_2 should be between v_l and v_r.
@@ -1080,27 +1093,34 @@ __global__ void __launch_bounds__(WID3) acceleration_kernel(
 
                // integral area between the two integrands
                Realf tval = target_density_r - target_density_l;
-
-               // Store directly into adjusted velocity block container at correct target GID/LID
-               const vmesh::GlobalID targetGID =
-                  col_i  * gpu_block_indices_to_id[0] +
-                  col_j  * gpu_block_indices_to_id[1] +
-                  blockK * gpu_block_indices_to_id[2];
-               const vmesh::LocalID targetLID = vmesh->getLocalID(targetGID);
-               // The target velocity cell within the target bloxk
-               const int tcell = target_cell_index_common
-                               + gk_mod_WID * gpu_cell_indices_to_id[2];
-               // Write values into block data
-               if (isfinite(tval) && (tval>0) && (targetLID != invalidLID) ) {
-                  gpu_blockData[targetLID * WID3 + tcell] += tval;
-                  // atomicAdd(&gpu_blockData[targetLID*WID3+tcell],tval);
+               // Only gather valid contributions
+               if (isfinite(tval) && (tval>0)) {
+                  sharedBlockData[ij + gk*WID2] += tval;
                }
             } // end check if gk valid for this thread
             __syncthreads();
          } // for loop over target k-indices
-         __syncthreads();
       } // for-loop over source blocks
+
+      // Now write data from sharedBlockData to actual block data
+      // Ensure all data gathering into shared data is complete.
+      __threadfence();
+      // Only loop over column target k values
+      for (int di = col_mink; di <= col_maxk; ++di) {
+         // Find GID from block indices, then LID
+         vmesh::GlobalID targetGID =
+            col_i  * gpu_block_indices_to_id[0] +
+            col_j  * gpu_block_indices_to_id[1] +
+            di     * gpu_block_indices_to_id[2];
+         vmesh::LocalID targetLID = vmesh->getLocalID(targetGID);
+         // Write values into block data
+         if (targetLID != invalidLID) {
+            gpu_blockData[targetLID * WID3 + tcell] += sharedBlockData[di*WID3 + ti];
+         }
+      }
    } // End this column
+
+
 } // end semilag acc kernel
 
 
@@ -1562,7 +1582,7 @@ __host__ bool gpu_acc_map_1d(
    phiprof::Timer accTimer {"acceleration kernel"};
    const dim3 grid_acc(largest_totalColumnSets,nLaunchCells,1);
    const dim3 block_acc(WID,WID,WID); // Calculates a whole block at a time
-   acceleration_kernel<<<grid_acc, block_acc, 0, baseStream>>> (
+   acceleration_kernel<<<grid_acc, block_acc, Dacc*WID3*sizeof(Realf), baseStream>>> (
       dev_vmeshes, // indexing: cellOffset
       dev_VBCs, // indexing: cellOffset
       dev_blockDataOrdered, //indexing: blockIdx.y
