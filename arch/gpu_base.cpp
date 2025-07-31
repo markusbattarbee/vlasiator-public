@@ -203,7 +203,9 @@ __host__ void gpu_init_device() {
 
    // if only one visible device, assume MPI system handles device visibility and just use the only visible one.
    if (deviceCount > 1) {
-      // Otherwise, try selecting the correct one.
+      // Print which device is in use
+      CHK_ERR( gpuGetDevice(&myDevice) );
+
       if (amps_node_rank >= deviceCount) {
          std::cerr<<"Error, attempting to use GPU device beyond available count!"<<std::endl;
          abort();
@@ -212,12 +214,13 @@ __host__ void gpu_init_device() {
          std::cerr<<"Error, MPI tasks per node exceeds available GPU device count!"<<std::endl;
          abort();
       }
-      CHK_ERR( gpuSetDevice(amps_node_rank) );
+      // Otherwise, Try selecting the correct one.?
+      // CHK_ERR( gpuSetDevice(amps_node_rank) );
       // Only printout for first node:
       if (amps_rank < amps_node_size) {
          stringstream printout;
          printout << "(Node 0) rank " << amps_rank << " is noderank "<< amps_node_rank << " of ";
-         printout << amps_node_size << " with " << deviceCount << " visible GPU devices." << std::endl;
+         printout << amps_node_size << " with " << deviceCount << " visible GPU devices. Using device "<< myDevice <<"."<< std::endl;
          std::cout << printout.str();
       }
    } else {
@@ -228,10 +231,13 @@ __host__ void gpu_init_device() {
    CHK_ERR( gpuDeviceSynchronize() );
    CHK_ERR( gpuGetDevice(&myDevice) );
 
+   // Decide on number of allocations to prepare
+   const uint nBaseCells = P::xcells_ini * P::ycells_ini * P::zcells_ini;
+   allocationCount = (nBaseCells == 1) ? 1 : P::GPUallocations;
+
    // Get device properties
    gpuDeviceProp prop;
    CHK_ERR( gpuGetDeviceProperties(&prop, myDevice) );
-
    gpuMultiProcessorCount = prop.multiProcessorCount;
    threadsPerMP = prop.maxThreadsPerMultiProcessor;
    #if defined(USE_GPU) && defined(__CUDACC__)
@@ -431,12 +437,10 @@ int gpu_reportMemory(const size_t local_cells_capacity, const size_t ghost_cells
    This is called from within non-threaded regions so does not perform async.
  */
 __host__ void gpu_vlasov_allocate(
-   const uint maxBlockCount, // Largest found vmesh size
-   const uint nCells // number of spatial cells
+   const uint maxBlockCount // Largest found vmesh size
    ) {
    // Always prepare for at least VLASOV_BUFFER_MINBLOCKS blocks
    const uint maxBlocksPerCell = max(VLASOV_BUFFER_MINBLOCKS, maxBlockCount);
-   allocationCount = (nCells == 1) ? 1 : P::GPUallocations;
    if (host_blockDataOrdered == NULL) {
       CHK_ERR( gpuMallocHost((void**)&host_blockDataOrdered,allocationCount*sizeof(Realf*)) );
    }
@@ -644,16 +648,13 @@ __host__ void gpu_batch_deallocate(bool first, bool second) {
    This is called from within non-threaded regions so does not perform async.
  */
 __host__ void gpu_acc_allocate(
-   uint maxBlockCount,
-   const uint nCells // number of spatial cells
+   uint maxBlockCount
    ) {
-   allocationCount = (nCells == 1) ? 1 : P::GPUallocations;
    if (host_columnOffsetData == NULL) {
       // This would be preferable as would use pinned memory but fails on exit
       void *buf;
       CHK_ERR( gpuMallocHost((void**)&buf,allocationCount*sizeof(ColumnOffsets)) );
       host_columnOffsetData = new (buf) ColumnOffsets[allocationCount];
-      // host_columnOffsetData = new ColumnOffsets[allocationCount];
    }
    if (dev_columnOffsetData == NULL) {
       CHK_ERR( gpuMalloc((void**)&dev_columnOffsetData,allocationCount*sizeof(ColumnOffsets)) );
@@ -733,7 +734,6 @@ __host__ void gpu_trans_allocate(
    if (nAllCells > 0) {
       // Use batch allocation
       gpu_batch_allocate(nAllCells);
-      allocationCount = (nAllCells == 1) ? 1 : P::GPUallocations;
    }
    // Vectors with one entry per pencil cell (prefetch to host)
    if (sumOfLengths > 0) {
