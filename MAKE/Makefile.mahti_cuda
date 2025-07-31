@@ -53,7 +53,7 @@ MATHFLAGS = --use_fast_math
 # nvcc fast_math does not assume only finite math
 testpackage: MATHFLAGS = --prec-sqrt=true --prec-div=true --ftz=false --fmad=false
 
-LDFLAGS = -O2 -g -G -L/appl/spack/v020/install-tree/gcc-10.4.0/cuda-12.1.1-2ppwzf/lib64 -lnvToolsExt --cudart shared  -Xlinker=-rpath=$(LIBRARY_PREFIX)/lib
+LDFLAGS = -O2 -g -G -L/appl/spack/v020/install-tree/gcc-10.4.0/cuda-12.1.1-2ppwzf/lib64 -lnvToolsExt --cudart shared  -Xlinker=-rpath=$(CURDIR)/$(LIBRARY_PREFIX)/lib
 LIB_MPI = -lgomp
 INC_MPI = -I/appl/spack/v020/install-tree/gcc-10.4.0/openmpi-4.1.5-xykxbk/include -I/appl/spack/v020/install-tree/gcc-10.4.0/openmpi-4.1.5-xykxbk/include/openmpi -I/appl/spack/syslibs/include
 
