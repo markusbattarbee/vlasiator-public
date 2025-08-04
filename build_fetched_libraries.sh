@@ -97,7 +97,8 @@ if [[ $PLATFORM != "-leonardo_booster" && $PLATFORM != "-karolina_cuda" && $PLAT
         ./configure --prefix=$WORKSPACE/libraries${PLATFORM} --with-jemalloc-prefix=je_ CC=mpicc CXX=mpic++
     fi
     make clean
-    make -j 4 && make install
+    make -j 4
+    make install
     cd ..
 fi
 
