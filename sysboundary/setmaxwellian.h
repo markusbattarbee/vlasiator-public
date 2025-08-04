@@ -23,38 +23,38 @@
 #ifndef SETMAXWELLIAN_H
 #define SETMAXWELLIAN_H
 
-#include <vector>
 #include "../definitions.h"
 #include "../readparameters.h"
 #include "../spatial_cells/spatial_cell_wrapper.hpp"
 #include "inflow.h"
 #include "sysboundarycondition.h"
+#include <vector>
 
 using namespace std;
 
 namespace SBC {
-   /*!\brief Maxwellian is a class applying fixed Maxwellian conditions according to parameters read from an input file.
-    *
-    * Maxwellian is a class handling cells tagged as sysboundarytype::MAXWELLIAN by this boundary condition.
-    *
-    * It applies fixed Maxwellian settings to the inflow boundary cells, the parameters of
-    * which are being read from an input file.
-    *
-    */
-   class Maxwellian : public Inflow {
-   public:
-      Maxwellian();
-      virtual ~Maxwellian();
+/*!\brief Maxwellian is a class applying fixed Maxwellian conditions according to parameters read from an input file.
+ *
+ * Maxwellian is a class handling cells tagged as sysboundarytype::MAXWELLIAN by this boundary condition.
+ *
+ * It applies fixed Maxwellian settings to the inflow boundary cells, the parameters of
+ * which are being read from an input file.
+ *
+ */
+class Maxwellian : public Inflow {
+public:
+   Maxwellian();
+   virtual ~Maxwellian();
 
-      static void addParameters();
-      virtual void getParameters() override;
+   static void addParameters();
+   virtual void getParameters() override;
 
-      virtual string getName() const override;
-      virtual uint getIndex() const override;
+   virtual string getName() const override;
+   virtual uint getIndex() const override;
 
-      void generateTemplateCell(spatial_cell::SpatialCell& templateCell, Real (&B)[3], int inputDataIndex, creal t) override;
-
-   };
-}
+   void generateTemplateCell(spatial_cell::SpatialCell& templateCell, Real (&B)[3], int inputDataIndex,
+                             creal t) override;
+};
+} // namespace SBC
 
 #endif

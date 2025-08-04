@@ -23,11 +23,11 @@
 #ifndef INFLOW_H
 #define INFLOW_H
 
-#include <vector>
 #include "../definitions.h"
 #include "../readparameters.h"
 #include "../spatial_cells/spatial_cell_wrapper.hpp"
 #include "sysboundarycondition.h"
+#include <vector>
 
 namespace SBC {
 
@@ -57,13 +57,13 @@ public:
    Inflow();
    virtual ~Inflow();
 
-   //virtual void getParameters() = 0;
+   // virtual void getParameters() = 0;
 
    virtual void initSysBoundary(creal& t, Project& project) override;
    virtual void assignSysBoundary(dccrg::Dccrg<SpatialCell, dccrg::Cartesian_Geometry>& mpiGrid,
-                               FsGrid<fsgrids::technical, FS_STENCIL_WIDTH>& technicalGrid) override;
+                                  FsGrid<fsgrids::technical, FS_STENCIL_WIDTH>& technicalGrid) override;
    virtual void applyInitialState(dccrg::Dccrg<SpatialCell, dccrg::Cartesian_Geometry>& mpiGrid,
-                                  FsGrid< fsgrids::technical, FS_STENCIL_WIDTH> & technicalGrid,
+                                  FsGrid<fsgrids::technical, FS_STENCIL_WIDTH>& technicalGrid,
                                   FsGrid<std::array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH>& perBGrid,
                                   FsGrid<std::array<Real, fsgrids::bgbfield::N_BGB>, FS_STENCIL_WIDTH>& BgBGrid,
                                   Project& project) override;
@@ -79,9 +79,9 @@ public:
    virtual void
    fieldSolverBoundaryCondElectricField(FsGrid<std::array<Real, fsgrids::efield::N_EFIELD>, FS_STENCIL_WIDTH>& EGrid,
                                         cint i, cint j, cint k, cuint component) override;
-   virtual void
-   fieldSolverBoundaryCondHallElectricField(FsGrid<std::array<Real, fsgrids::ehall::N_EHALL>, FS_STENCIL_WIDTH>& EHallGrid,
-                                            cint i, cint j, cint k, cuint component) override;
+   virtual void fieldSolverBoundaryCondHallElectricField(
+       FsGrid<std::array<Real, fsgrids::ehall::N_EHALL>, FS_STENCIL_WIDTH>& EHallGrid, cint i, cint j, cint k,
+       cuint component) override;
    virtual void fieldSolverBoundaryCondGradPeElectricField(
        FsGrid<std::array<Real, fsgrids::egradpe::N_EGRADPE>, FS_STENCIL_WIDTH>& EGradPeGrid, cint i, cint j, cint k,
        cuint component) override;
@@ -89,9 +89,9 @@ public:
        FsGrid<std::array<Real, fsgrids::dperb::N_DPERB>, FS_STENCIL_WIDTH>& dPerBGrid,
        FsGrid<std::array<Real, fsgrids::dmoments::N_DMOMENTS>, FS_STENCIL_WIDTH>& dMomentsGrid, cint i, cint j, cint k,
        cuint RKCase, cuint component) override;
-   virtual void
-   fieldSolverBoundaryCondBVOLDerivatives(FsGrid<std::array<Real, fsgrids::volfields::N_VOL>, FS_STENCIL_WIDTH>& volGrid,
-                                          cint i, cint j, cint k, cuint component) override;
+   virtual void fieldSolverBoundaryCondBVOLDerivatives(
+       FsGrid<std::array<Real, fsgrids::volfields::N_VOL>, FS_STENCIL_WIDTH>& volGrid, cint i, cint j, cint k,
+       cuint component) override;
    virtual void vlasovBoundaryCondition(dccrg::Dccrg<SpatialCell, dccrg::Cartesian_Geometry>& mpiGrid,
                                         const CellID& cellID, const uint popID, const bool doCalcMomentsV) override;
    virtual void getFaces(bool* faces) override;
@@ -124,7 +124,6 @@ protected:
    void setBFromTemplate(dccrg::Dccrg<SpatialCell, dccrg::Cartesian_Geometry>& mpiGrid,
                          FsGrid<std::array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH>& perBGrid,
                          FsGrid<std::array<Real, fsgrids::bgbfield::N_BGB>, FS_STENCIL_WIDTH>& BgBGrid);
-
 };
 } // namespace SBC
 
